@@ -92,7 +92,7 @@ niche.model<-function(S,C){
   return(new.mat)
 }
 
-S = 30
+S = 300
 nm <- niche.model(S, .05)
 r.i <- c()
 r.i[colSums(nm) == 0] <- 1
@@ -109,7 +109,7 @@ amat <- nm
 B.i <- runif(S, .5, 1) # initial abundance
 B <- matrix(B.i, nrow = 2000, ncol = S, byrow = T)
 for(i in 2:2000){
-  #r.i2[colSums(nm) == 0] <- sapply(r.i[colSums(nm) == 0], function(x){rnorm(1, x, .1)})
+  r.i2[colSums(nm) == 0] <- sapply(r.i[colSums(nm) == 0], function(x){rnorm(1, x, .1)})
   B[i,] <- B[i-1,] + dBdt(r.i2, B.i = B[i-1,], K.i, x.i, yij, amat, q, eij)
   B[i,][B[i,] < 10^-10] <- 0
 }
@@ -119,4 +119,4 @@ which(B[100,] != 0)
 length(which(B[100,] != 0))
 
 apply(B, 2, function(x){sum(x == 0)})
-plot(graph.adjacency(nm[which(B[100,] != 0),which(B[100,] != 0)]))
+plot(graph.adjacency(nm[which(B[100,] != 0),which(B[100,] != 0)]), layout = layout.kamada.kawai)
