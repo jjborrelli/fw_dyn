@@ -145,3 +145,46 @@ eig.analysis <- function(n, matrices){
   }
   return(eigenMATRIX)
 }
+
+
+
+## Lotka - Volterra
+
+LV.fr <- function(N, A, h){
+  numer <- A %*% N
+  denom <- 1 + ((abs(A)*h) %*% N)
+  
+  return(numer/denom)
+}
+
+
+t <- c()
+ex <- c()
+me.neg <- c()
+me.pos <- c()
+
+for(i in 1:100){  
+  A <- matrix(c(0,1,0,-1,0,1,0,-1,0), nrow = 3) * matrix(runif(9, 0, 1), nrow = 3)
+  #A <- matrix(c(0,1,1,-1,0,0,-1,0,0), nrow = 3) * matrix(runif(9, 0, 1), nrow = 3)
+  h <- 1
+  K <- 1000
+  #t = 50
+  
+  me.neg[i] <- mean(A[A<0])
+  me.pos[i] <- mean(A[A>0])
+  
+  N <- c(100, 15, 20)
+  
+  #Nt <- matrix(nrow = t, ncol = nrow(A))
+  #for(i in 1:t){
+  
+  Nt <- matrix(N, ncol = nrow(A))
+  while(all(N > 0)){
+    N <- N + c(1, .1, .1) * N * LV.fr(N, A, h) - (.2 * N) + (c(1,0,0) * N * (1 - (N/K))) 
+    N[N<1] <- 0
+    Nt <- rbind(Nt, as.vector(N))
+  }
+  matplot(Nt, typ = "l")
+  t[i] <- nrow(Nt)
+  ex[i] <- which(N == 0)
+}

@@ -16,22 +16,25 @@ Fij <- function(B, amat, B.o, q){
 
 # impact of the consumer on the resource
 Fji <- function(B, amat, B.o, q){
-  denom <- (amat %*% B)^(1+q) + .5^(1+q)
+  denom <- (amat %*% B)^(1+q) + B.o^(1+q)
   numer <- (t(apply(amat, 1, function(x){x * B})))^(1+q)
   apply(numer, 2, function(x){x/denom})
 }
 
 # Check functional response
-res1 <- c()
-for(i in 1:length(seq(.1, 10, .025))){res1[i] <- Fij(seq(.1, 10, .025)[i], amat = matrix(1), .5, q = 0)}
-res2 <- c()
-for(i in 1:length(seq(.1, 10, .025))){res2[i] <- Fij(seq(.1, 10, .025)[i], amat = matrix(1), .5, q = .2)}
-res3 <- c()
-for(i in 1:length(seq(.1, 10, .025))){res3[i] <- Fij(seq(.1, 10, .025)[i], amat = matrix(1), .5, q = 1)}
+B <- expand.grid(seq(.1, 5, .025), seq(.1, 5, .025))
+m <- matrix(c(0,0,1,0), nrow = 2)
 
-plot(res1, typ = "l", col = "orange")
-points(res2, typ = "l", col = "blue")
-points(res3, typ = "l", col = "purple", xpd = F)
+res1 <- c()
+for(i in 1:nrow(B)){res1[i] <- (Fij(as.matrix(B)[i,], amat = m, .5, q = 0))[3]}
+res2 <- c()
+for(i in 1:nrow(B)){res2[i] <- (Fij(as.matrix(B)[i,], amat = m, .5, q = .2))[3]}
+res3 <- c()
+for(i in 1:nrow(B)){res3[i] <- (Fij(as.matrix(B)[i,], amat = m, .5, q = 1))[3]}
+
+plot(res1~B[,2], typ = "l", col = "orange", lwd = 2, ylim = c(0,1), xlim = c(0,2), xpd = F)
+points(res2~B[,2], typ = "l", col = "blue", lwd = 2, xpd = F)
+points(res3~B[,2], typ = "l", col = "purple", lwd = 2, xpd = F)
 
 
 # Function for change of biomass in one timestep

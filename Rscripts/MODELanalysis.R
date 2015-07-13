@@ -10,7 +10,7 @@ S = 4
 
 K.i <- rep(1, S) # carrying capacity
 x.i <- rep(.5, S)
-yij <- .6
+yij <- 6
 eij <- 1
 q <-  .2
 
@@ -23,7 +23,7 @@ for(i in 1:length(fournode.am)){
   r.i <- get.ri(amat)
   r.i2 <- r.i
   
-  res <- web_dyn(n.times = 2000, amat = amat, B.i = B.i, 
+  res <- web_dyn(n.times = 50, amat = amat, B.i = B.i, 
                  r.i = r.i2, K.i = K.i, x.i = x.i, yij = yij, eij = eij, q = q, stochastic = T, ext.thres = 10^-10)
   
   matplot(res, type = "l")
@@ -56,3 +56,27 @@ system.time(
 
 qss4 <- apply(emat, 2, function(x){sum(x < 0)/length(x)})
 names(qss4) <- names(fournode.am)
+
+
+
+###
+###
+###
+S = 40
+
+K.i <- rep(1, S) # carrying capacity
+x.i <- rep(.5, S)
+yij <- 6
+eij <- 1
+q <-  .2
+
+B.i <- runif(S, .5, 1)
+
+amat <- niche.model(S, .1)
+r.i <- get.ri(amat)
+r.i2 <- r.i
+
+res <- web_dyn(n.times = 50, amat = amat, B.i = B.i, 
+               r.i = r.i2, K.i = K.i, x.i = x.i, yij = yij, eij = eij, q = q, stochastic = T, ext.thres = 10^-10)
+
+matplot(res[1:20,], type = "l")
