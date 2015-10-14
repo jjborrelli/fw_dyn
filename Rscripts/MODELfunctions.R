@@ -4,11 +4,21 @@
 G.i <- function(r, B, K){return(r * B * (1 - (B/K)))}
 
 # functional response 
-Fij <- function(B, A, B.0, q){
-  sum.bk <- rowSums(sapply(1:nrow(A), function(x){B[x] * A[x,]}))^(1+q)
-  denom <- sum.bk + B.0^(1+q)
+Fij <- function(B, A, B.0, xpar){
+  sum.bk <- rowSums(sapply(1:nrow(A), function(x){B[x] * A[x,]}))^(1+xpar)
+  denom <- sum.bk + B.0^(1+xpar)
   
-  F1 <- sapply(1:nrow(A), function(x){(B[x] * A[x,])^(1+q)})/denom
+  F1 <- sapply(1:nrow(A), function(x){(B[x] * A[x,])^(1+xpar)})/denom
+  
+  return(F1)
+}
+
+# functional response with interference
+Fbd <- function(B, A, B.0, xpar){
+  sum.bk <- rowSums(sapply(1:nrow(A), function(x){B[x] * A[x,]}))
+  denom <- sum.bk + (1 + (xpar * B)) * B.0
+  
+  F1 <- sapply(1:nrow(A), function(x){(B[x] * A[x,])})/denom
   
   return(F1)
 }
@@ -27,7 +37,7 @@ get.r <- function(amat){
 conres <- function(t,states,par){
   
   with(as.list(c(states, par)), {
-    dB <- G.i(r = r.i, B = states, K = K) - x.i*states + rowSums((x.i * yij * Fij(states, A, B.o, q = q) * states)) - rowSums((x.i * yij * t(Fij(states, A, B.o, q = q)* states))/eij)
+    dB <- G.i(r = r.i, B = states, K = K) - x.i*states + rowSums((x.i * yij * FR(states, A, B.o, xpar = xpar) * states)) - rowSums((x.i * yij * t(FR(states, A, B.o, xpar = xpar)* states))/eij)
     
     list(c(dB))
   })
@@ -35,7 +45,7 @@ conres <- function(t,states,par){
 }
 
 # wrapper  to input params, run dynamics, and plot
-Crmod <- function(Adj, t = 1:200, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, q = .2, B.o =.5, plot = FALSE){
+Crmod <- function(Adj, t = 1:200, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = .2, B.o =.5, plot = FALSE){
   require(deSolve)
   
   grow <- get.r(Adj)
@@ -45,16 +55,16 @@ Crmod <- function(Adj, t = 1:200, G = G.i, method = conres, FuncRes = Fij, K = 1
     x.i = x.i,
     yij = yij,
     eij = 1,
-    q = q,
+    xpar = xpar,
     B.o = B.o,
     r.i = grow,
     A = Adj,
     G.i = G,
-    Fij = FuncRes
+    FR = FuncRes
   )
   
   states <- runif(nrow(Adj), .5, 1)
-  
+ 
   out <- ode(y=states, times=t, func=method, parms=par, events = list(func = eventfun, time = t))
   
   if(plot) print(matplot(out[,-1], typ = "l", lwd = 2))
