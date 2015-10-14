@@ -2,62 +2,74 @@
 
 # growth (nonzero for basal spp only)
 G.i <- function(r, B, K){return(r * B * (1 - (B/K)))}
-# death
-d.i <- function(x, B){return(x * B)}
 
-
-# impact of the resource on the consumer
-Fij <- function(B, amat, B.o, q){
-  denom <- (amat %*% B)^(1+q) + B.o^(1+q)
-  numer <- (t(apply(amat, 1, function(x){x * B})))^(1+q)
-  return(apply(numer, 2, function(x){x/denom}))
-}
-
-
-# impact of the consumer on the resource
-Fji <- function(B, amat, B.o, q){
-  denom <- (amat %*% B)^(1+q) + .5^(1+q)
-  numer <- (t(apply(amat, 1, function(x){x * B})))^(1+q)
-  apply(numer, 2, function(x){x/denom})
-}
-
-
-# Function for change of biomass in one timestep
-#amat is input as the adjacency matrix of the network
-dBdt <- function(r.i, B.i, K.i, x.i, yij, amat, q, eij){
-  growth <- G.i(r.i, B.i, K.i) 
-  death <- d.i(x.i, B.i) 
-  funct <- x.i * yij * Fij(B.i, t(amat), .5, q) %*% B.i - (x.i * yij * Fji(B.i, amat, .5, q) %*% B.i)/eij
-  return(growth - death + funct)
-}
-
-
-# Full model
-web_dyn <- function(n.times = 100, amat, B.i, r.i, K.i, x.i = .5, yij = .6, q = .2, eij = 1, stochastic = FALSE, ext.thres = 10^-10){
-  r.i2 <- r.i
-  # create matrix with initial abundances
-  B <- matrix(B.i, nrow = n.times, ncol = ncol(amat), byrow = T)
-  for(i in 2:n.times){
-    # stochastic growth rate
-    if(stochastic){r.i2[r.i == 1] <- sapply(r.i[r.i == 1], function(x){rnorm(1, x, .1)})}
-    
-    # next time step
-    B[i,] <- B[i-1,] + dBdt(r.i2, B.i = B[i-1,], K.i, x.i, yij, amat, q, eij)
-    
-    # Check extinctions
-    B[i,][B[i,] < ext.thres] <- 0
-  }
-  return(B)
+# functional response 
+Fij <- function(B, A, B.0, q){
+  sum.bk <- rowSums(sapply(1:nrow(A), function(x){B[x] * A[x,]}))^(1+q)
+  denom <- sum.bk + B.0^(1+q)
+  
+  F1 <- sapply(1:nrow(A), function(x){(B[x] * A[x,])^(1+q)})/denom
+  
+  return(F1)
 }
 
 # get r.i from adjacency matrix
-get.ri <- function(amat){
+get.r <- function(amat){
   r.i <- c()
   r.i[colSums(amat) == 0] <- 1
   r.i[colSums(amat) != 0] <- 0
   
   if(sum(r.i) == 0){r.i[sample(1:length(r.i), 1)] <- 1}
   return(r.i)
+}
+
+# dynamic function for ode solver
+conres <- function(t,states,par){
+  
+  with(as.list(c(states, par)), {
+    dB <- G.i(r = r.i, B = states, K = K) - x.i*states + rowSums((x.i * yij * Fij(states, A, B.o, q = q) * states)) - rowSums((x.i * yij * t(Fij(states, A, B.o, q = q)* states))/eij)
+    
+    list(c(dB))
+  })
+  
+}
+
+# wrapper  to input params, run dynamics, and plot
+Crmod <- function(Adj, t = 1:200, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, q = .2, B.o =.5, plot = FALSE){
+  require(deSolve)
+  
+  grow <- get.r(Adj)
+  
+  par <- list(
+    K = K,
+    x.i = x.i,
+    yij = yij,
+    eij = 1,
+    q = q,
+    B.o = B.o,
+    r.i = grow,
+    A = Adj,
+    G.i = G,
+    Fij = FuncRes
+  )
+  
+  states <- runif(nrow(Adj), .5, 1)
+  
+  out <- ode(y=states, times=t, func=method, parms=par, events = list(func = eventfun, time = t))
+  
+  if(plot) print(matplot(out[,-1], typ = "l", lwd = 2))
+  
+  return(out)
+}
+
+# event function to make any spp under the threshold equal to 0 (extinction)
+eventfun <- function(times, states, parms){
+  with(as.list(states), {
+    for(i in 1:length(states)){
+      if(states[i] < 10^-10){states[i] <- 0}else{states[i]} 
+    }
+    return(c(states))
+  })
 }
 
 # Niche model functions
@@ -110,6 +122,52 @@ motif_counter <- function(graph.lists){
 }
 
 
+# curveball function for null model
+curve_ball<-function(m){
+  RC=dim(m)
+  R=RC[1]
+  C=RC[2]
+  hp=list()
+  for (row in 1:dim(m)[1]) {hp[[row]]=(which(m[row,]==1))}
+  l_hp=length(hp)
+  for (rep in 1:5*l_hp){
+    AB=sample(1:l_hp,2)
+    a=hp[[AB[1]]]
+    b=hp[[AB[2]]]
+    ab=intersect(a,b)
+    l_ab=length(ab)
+    l_a=length(a)
+    l_b=length(b)
+    if ((l_ab %in% c(l_a,l_b))==F){
+      tot=setdiff(c(a,b),ab)
+      l_tot=length(tot)
+      tot=sample(tot, l_tot, replace = FALSE, prob = NULL)
+      L=l_a-l_ab
+      hp[[AB[1]]] = c(ab,tot[1:L])
+      hp[[AB[2]]] = c(ab,tot[(L+1):l_tot])}
+    
+  }
+  rm=matrix(0,R,C)
+  for (row in 1:R){rm[row,hp[[row]]]=1}
+  rm
+}
+
+# wrapper for n curveball null matrices 
+curving <- function(adjmat, n){
+  mot <- motif_counter(list(graph.adjacency(adjmat)))
+  newmat <- adjmat
+  
+  for(i in 1:n){
+    newmat <- curve_ball(newmat)
+    m <- motif_counter(list(graph.adjacency(newmat)))
+    mot <- rbind(mot, m)
+  }
+  return(mot[-1,])
+}
+
+
+
+
 # QSS functions
 conversion <- function(tm){
   for(i in 1:nrow(tm)){
@@ -148,43 +206,3 @@ eig.analysis <- function(n, matrices){
 
 
 
-## Lotka - Volterra
-
-LV.fr <- function(N, A, h){
-  numer <- A %*% N
-  denom <- 1 + ((abs(A)*h) %*% N)
-  
-  return(numer/denom)
-}
-
-
-t <- c()
-ex <- c()
-me.neg <- c()
-me.pos <- c()
-
-for(i in 1:100){  
-  A <- matrix(c(0,1,0,-1,0,1,0,-1,0), nrow = 3) * matrix(runif(9, 0, 1), nrow = 3)
-  #A <- matrix(c(0,1,1,-1,0,0,-1,0,0), nrow = 3) * matrix(runif(9, 0, 1), nrow = 3)
-  h <- 1
-  K <- 1000
-  #t = 50
-  
-  me.neg[i] <- mean(A[A<0])
-  me.pos[i] <- mean(A[A>0])
-  
-  N <- c(100, 15, 20)
-  
-  #Nt <- matrix(nrow = t, ncol = nrow(A))
-  #for(i in 1:t){
-  
-  Nt <- matrix(N, ncol = nrow(A))
-  while(all(N > 0)){
-    N <- N + c(1, .1, .1) * N * LV.fr(N, A, h) - (.2 * N) + (c(1,0,0) * N * (1 - (N/K))) 
-    N[N<1] <- 0
-    Nt <- rbind(Nt, as.vector(N))
-  }
-  matplot(Nt, typ = "l")
-  t[i] <- nrow(Nt)
-  ex[i] <- which(N == 0)
-}
