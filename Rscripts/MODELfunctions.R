@@ -175,7 +175,65 @@ curving <- function(adjmat, n){
   return(mot[-1,])
 }
 
+# analyze the network
 
+get.zscore <- function(mat, iter = 10000){
+  mot <- motif_counter(graph.lists = list(graph.adjacency(mat)))
+  nullmot <- curving(adjmat = mat, iter)
+  
+  z.score <- as.matrix((mot-colMeans(nullmot))/apply(nullmot, 2, sd))
+  return(z.score)
+}
+
+# multiple iterations
+
+CRmod.gen <- function(S, con, network, ...){
+  # create model network
+  if(network == "niche"){amat <- niche.model(S = S, C = con)}
+  if(network == "erdosrenyi"){amat <- erdos.renyi.game(n = S, p.or.m = con, type = "gnp")}
+  
+  # dynamic model
+  
+  dyn1 <- Crmod(Adj = amat, t = 1:500, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = 1, B.o =.5, plot = FALSE)
+  
+  # get motif scores
+  
+  amat2 <- amat[which(tail(dyn1[,-1], 1) > 0),which(tail(dyn1[,-1], 1) > 0)]
+  
+  z1 <- data.frame(time = factor("init"), get.zscore(amat))
+  z2 <- data.frame(time = factor("final"), get.zscore(amat2))
+  
+  
+  return(rbind(z1, z2))
+}
+
+
+# visualize 
+
+vis_dyn <- function(dyn, t.start = 1, t.end = 200){
+  require(ggplot2)
+  g <- ggplot(melt(dyn[t.start:t.end,-1]), aes(x = Var1, y = value, col = factor(Var2))) + geom_line() + theme(legend.position="none")
+  print(g)
+}
+
+netGIF <- function(mat, dyn, path1 = getwd()){
+  require(animation)
+  
+  lay <- matrix(runif(nrow(mat)*2), ncol = 2)
+  s <- matrix(nrow = nrow(mat), ncol = 15)
+  
+  ani.options(interval = .25)
+  saveGIF(
+    {
+      for(i in 1:nrow(mat)){
+        s[i,] <-log(dyn[i, c(which(tail(dyn, 1) > 0)[-1])])+abs(min(log(dyn[i, c(which(tail(dyn, 1) > 0)[-1])])))
+        plot.igraph(graph.adjacency(mat), vertex.size = s[i,], edge.arrow.size = .5, layout = lay)
+      }
+    },
+    movie.name = "fwdyn.gif", interval = .25, nmax =500, ani.width = 600, ani.height = 600,
+    outdir = path1
+  )
+}
 
 
 # QSS functions
