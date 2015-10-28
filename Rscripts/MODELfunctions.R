@@ -185,6 +185,28 @@ get.zscore <- function(mat, iter = 10000){
   return(z.score)
 }
 
+rel.rand <- function(mat, n, iter = 10000){
+  require(igraph)
+  rands <- list()
+  for(i in 1:iter){
+    spp <- sample(1:nrow(mat), n)
+    rands[[i]] <- mat[spp, spp]
+  }
+  rands.g <- lapply(rands, graph.adjacency)
+  mot <- motif_counter(rands.g)
+  return(mot)
+}
+
+rel.rand.z <- function(mat, dyn, iter = 10000){
+  m1 <- motif_counter(list(graph.adjacency(mat[which(tail(dyn, 1)[-1] > 0),which(tail(dyn, 1)[-1] > 0)])))
+  n <- sum(tail(dyn, 1)[-1] > 0)
+  m2 <- rel.rand(mat = mat, n = n, iter = iter)
+  
+  zscore <- (m1 - colMeans(m2))/apply(m2, 2, sd)
+  
+  return(zscore)
+}
+
 # multiple iterations
 
 CRmod.gen <- function(S, con, network, ...){
@@ -200,11 +222,12 @@ CRmod.gen <- function(S, con, network, ...){
   
   amat2 <- amat[which(tail(dyn1[,-1], 1) > 0),which(tail(dyn1[,-1], 1) > 0)]
   
-  z1 <- data.frame(time = factor("init"), get.zscore(amat))
-  z2 <- data.frame(time = factor("final"), get.zscore(amat2))
+  #z1 <- data.frame(time = factor("init"), get.zscore(amat))
+  #z2 <- data.frame(time = factor("final"), get.zscore(amat2))
+  #return(rbind(z1, z2))
   
-  
-  return(rbind(z1, z2))
+  z <- rel.rand.z(amat, dyn1, iter = 10000)
+  return(z)
 }
 
 

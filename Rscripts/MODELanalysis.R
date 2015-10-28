@@ -11,20 +11,29 @@ source("./Rscripts/MODELfunctions.R")
 
 nm1 <- niche.model(S = 100, C = .25)
 
+rel.rand(nm1, 11, 10)
+
 # dynamic model
 
 dyn2 <- Crmod(Adj = nm1, t = 1:500, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = .2, B.o =.5, plot = FALSE)
 
+rel.rand.z(mat = nm1, dyn = dyn2, iter = 10)
+
 # general crmod
 results <- list()
+results2 <- list()
 for(i in 1:20){
   test <- CRmod.gen(100, .2, "niche", xpar = 1)
-  results[[i]] <- data.frame(iter = i, test)
+  test2 <- CRmod.gen(100, .2, "niche", xpar = .2)
+  results[[i]] <- data.frame(q = 1, iter = i, test)
+  results2[[i]] <- data.frame(q = .2, iter = i, test2)
   print(i)
 }
 z.all <- melt(rbindlist(results), id.vars = c(1,2))
+z.all2 <- melt(rbindlist(results2), id.vars = c(1,2))
 
-ggplot(z.all, aes(x = variable, y = value, fill = time)) + geom_boxplot()
+
+ggplot(rbind(z.all, z.all2), aes(x = variable, y = value, fill = factor(q))) + geom_boxplot()
 
 # visualize results
 
