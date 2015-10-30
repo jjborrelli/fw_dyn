@@ -9,13 +9,16 @@ source("./Rscripts/MODELfunctions.R")
 
 # create model network
 
-nm1 <- niche.model(S = 100, C = .25)
+nm1 <- niche.model(S = 100, C = .2)
 
 rel.rand(nm1, 11, 10)
 
 # dynamic model
 
 dyn2 <- Crmod(Adj = nm1, t = 1:500, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = .2, B.o =.5, plot = FALSE)
+
+web_props(mat)
+web_props(mat[which(tail(dyn2, 1)[-1] > 0),which(tail(dyn2, 1)[-1] > 0)])
 
 rel.rand.z(mat = nm1, dyn = dyn2, iter = 10)
 

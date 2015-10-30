@@ -131,6 +131,29 @@ motif_counter <- function(graph.lists){
   return(motif.data.frame)
 }
 
+web_props <- function(mat){
+  require(NetIndices)
+  N <- nrow(mat)
+  C <- sum(mat)/(nrow(mat)*(nrow(mat)-1))
+  
+  genind <- GenInd(mat)
+  Ltot <- genind$Ltot
+  LD <- genind$LD
+  
+  g <- graph.adjacency(mat)
+  
+  clust <- transitivity(g)
+  apl <- average.path.length(g)
+  diam <- diameter(g)
+  
+  bas <- sum(degree(g, mode = "in") == 0)
+  top <- sum(degree(g, mode = "out") == 0)
+  
+  mod <- simulatedAnnealing(mat, fixed = 100)
+  
+  df <- data.frame(N, C, Ltot, LD, clust, mod = mod$modularity, apl, diam, bas, top)
+  return(df)
+}
 
 # curveball function for null model
 curve_ball<-function(m){
