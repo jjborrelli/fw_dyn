@@ -22,9 +22,9 @@ rel.rand.z(mat = nm1, dyn = dyn2, iter = 10)
 # general crmod
 results <- list()
 results2 <- list()
-for(i in 1:20){
-  test <- CRmod.gen(100, .2, "niche", xpar = 1)
-  test2 <- CRmod.gen(100, .2, "niche", xpar = .2)
+for(i in 1:200){
+  test <- CRmod.gen(100, .2, "erdosrenyi", xpar = 1)
+  test2 <- CRmod.gen(100, .2, "erdosrenyi", xpar = .2)
   results[[i]] <- data.frame(q = 1, iter = i, test)
   results2[[i]] <- data.frame(q = .2, iter = i, test2)
   print(i)

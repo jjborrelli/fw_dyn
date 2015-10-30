@@ -209,14 +209,14 @@ rel.rand.z <- function(mat, dyn, iter = 10000){
 
 # multiple iterations
 
-CRmod.gen <- function(S, con, network, ...){
+CRmod.gen <- function(S, con, network, xpar, ...){
   # create model network
   if(network == "niche"){amat <- niche.model(S = S, C = con)}
-  if(network == "erdosrenyi"){amat <- erdos.renyi.game(n = S, p.or.m = con, type = "gnp")}
+  if(network == "erdosrenyi"){ag <- erdos.renyi.game(n = S, p.or.m = con, type = "gnp", directed = T); amat <- get.adjacency(ag, sparse = F)}
   
   # dynamic model
   
-  dyn1 <- Crmod(Adj = amat, t = 1:500, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = 1, B.o =.5, plot = FALSE)
+  dyn1 <- Crmod(Adj = amat, t = 1:500, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = xpar, B.o =.5, plot = FALSE)
   
   # get motif scores
   
