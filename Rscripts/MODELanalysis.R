@@ -41,6 +41,19 @@ for(j in 1:length(x)){
 }
 matplot(prey, eaten, typ = "l")
 
+FR = Fbd
+prey <- seq(0, 2, .01)
+pred <- .5
+x <- seq(0, 5, .2)
+eaten <- matrix(nrow = length(prey), ncol = length(x))
+for(j in 1:length(x)){
+  for(i in 1:length(prey)){
+    states = c(prey[i], pred)
+    eaten[i,j] <- rowSums((x.i * yij * FR(states, A, B.o, xpar = x[j]) * states))[2]
+  }
+}
+matplot(prey, eaten, typ = "l")
+
 rel.rand.z(mat = nm1, dyn = dyn2, iter = 10)
 
 # general crmod
