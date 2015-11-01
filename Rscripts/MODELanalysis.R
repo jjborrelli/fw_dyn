@@ -13,12 +13,33 @@ nm1 <- niche.model(S = 100, C = .2)
 
 rel.rand(nm1, 11, 10)
 
+nm1 <- matrix(c(0,0,1,0), nrow = 2)
 # dynamic model
 
-dyn2 <- Crmod(Adj = nm1, t = 1:500, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = .2, B.o =.5, plot = FALSE)
+dyn2 <- Crmod(Adj = nm1, t = 1:500, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = 10, B.o =.5, plot = TRUE)
 
-web_props(mat)
-web_props(mat[which(tail(dyn2, 1)[-1] > 0),which(tail(dyn2, 1)[-1] > 0)])
+web_props(nm1)
+web_props(nm1[which(tail(dyn2, 1)[-1] > 0),which(tail(dyn2, 1)[-1] > 0)])
+
+K = 1
+x.i = .5
+yij = 6
+xpar = 0
+B.o = .5
+A =  matrix(c(0,0,1,0), nrow = 2)
+FR = Fij
+
+prey <- seq(0, 2, .01)
+pred <- .5
+x <- seq(0, 5, .2)
+eaten <- matrix(nrow = length(prey), ncol = length(x))
+for(j in 1:length(x)){
+  for(i in 1:length(prey)){
+    states = c(prey[i], pred)
+    eaten[i,j] <- rowSums((x.i * yij * FR(states, A, B.o, xpar = x[j]) * states))[2]
+  }
+}
+matplot(prey, eaten, typ = "l")
 
 rel.rand.z(mat = nm1, dyn = dyn2, iter = 10)
 

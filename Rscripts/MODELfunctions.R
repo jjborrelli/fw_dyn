@@ -1,3 +1,7 @@
+library(igraph)
+library(NetIndices)
+library(modMax)
+
 # C-R-model Functions
 
 # growth (nonzero for basal spp only)
