@@ -1,0 +1,151 @@
+---
+title: "Food Web Structure and Dynamics"
+author: "Jonathan J. Borrelli"
+date: "Monday, November 02, 2015"
+output:
+  pdf_document:
+    fig_caption: true
+    number_sections: yes
+    toc: yes
+---
+# Introduction
+
+## Purpose
+To further explore the relationship between food web structure and dynamics. 
+
+## Hypothesis
+In previous work I have asserted that observed food web structure emerges from the preferential loss of unstable configurations. This was supported by correlational evidence that the basic building blocks of food webs, short food chains and motifs, are also more likely to be stable than other potential building blocks of similar types (e.g., longer food chains or other three species subgraphs). 
+
+This project seeks a more mechanistic approach, by simulating the dynamics of model food webs. Based on my prior work I suggest that the structure of the food web following extinction events (from simulated dynamics) will exhibit a higher proportion of stable components via loss of species that contribute to destabilizing building blocks.  
+
+# The Model
+
+I have borrowed a model of multispecies predator prey dynamics based on species biomass, that has been used in a number of publications. Specifically, I am using the form and parameterization suggested by Romanuk et al. (2009) and Williams and Martinez (2004). 
+
+$$
+\frac{dB_i(t)}{dt} = G_i(B) - x_iB_i(t) + \sum_{j}^{n}\left(x_i y_{ij} F_{ij}(B) B_i(t) - x_j y_{ji} F_{ji}(B) B_j(t) / e_{ji} \right)
+$$
+
+The first term, $G_i(B)$, is the function describing primary production of producer species in the absence of predation. Producers grow exponentially with density dependence. 
+
+$$
+G_i(B) = r_i B_i(t) (1 - \frac{B_i(t)}{K_i})
+$$
+
+In the equation, $r_i$ is the intrinsic rate of increase, $B_i$ is the biomass of population _i_, and $K_i$ is the carrying capacity of population _i_.
+
+This equation is represented in my code as: 
+```{r growthfunction}
+G.i <- function(r, B, K){return(r * B * (1 - (B/K)))}
+```
+As in the equation `r` is the intrinsic rate of increase, `B` is biomass, and `K` is carrying capacity. 
+
+The consumption of resource _j_ by consumer _i_ is modeled by: 
+$$
+F_{ij}(B) = \frac{B_j^{1+q}}{\sum_k B_k^{1+q} + B_0^{1+q}}
+$$
+
+Here, $B_j$ is the biomass of the consumed resource, in the denominator the summed biomass across all $k$ resources, and $B_0$ is the half saturation density. The parameter $q$ is a tuning parameter that lets the modeller shift the functional response between a type II ($q = 0$) and a type III ($q = 1$). The functional response above defines the fraction of a predator's maximal ingestion that is realized at a given time step. 
+
+The functional response is represented in my code as: 
+```{r funcres}
+Fij <- function(B, A, B.0, xpar){
+  sum.bk <- rowSums(sapply(1:nrow(A), function(x){B[x] * A[x,]}))^(1+xpar)
+  denom <- sum.bk + B.0^(1+xpar)
+  
+  F1 <- sapply(1:nrow(A), function(x){(B[x] * A[x,])^(1+xpar)})/denom
+  
+  return(F1)
+}
+```
+
+The function takes in a vector of species' biomasses, the adjacency matrix defining species' interactions, the half saturation constant `B.0`, and the tuning parameter ($q$, here termed `xpar`). The first line of the function generates the summation in the denominator of the functional response, $\sum_k B_k^{1+q}$, and the second line gives the last part of the denominator. In the code, the denominator is a vector of length _N_ (number of species), were each element is the denominator of the corresponding species. The third line generates the numerator by assigning the biomass of the prey species to each interaction and raising it to `1+q` and at the same time completing the function by dividing each row of the matrix by the corresponding denominator. 
+
+## Functional Response 
+
+To test how the tuning parameter changes the shape of the functional response, I wrote a simple simulation to test how the biomass of prey eaten changes with the biomass of the prey species in a two species predator prey system defined by `r matrix(c(0,0,1,0), nrow = 2)`. 
+```{r FRsim}
+K = 1
+x.i = .5
+yij = 6
+xpar = 0
+B.o = .5
+A =  matrix(c(0,0,1,0), nrow = 2)
+FR = Fij
+
+prey <- seq(0, 2, .01)
+pred <- .5
+x <- seq(0, 5, .2)
+eaten <- matrix(nrow = length(prey), ncol = length(x))
+for(j in 1:length(x)){
+  for(i in 1:length(prey)){
+    states = c(prey[i], pred)
+    eaten[i,j] <- rowSums((x.i * yij * FR(states, A, B.o, xpar = x[j]) * states))[2]
+  }
+}
+```
+I ran the simulation using the same fixed parameter values I used in the full model based on Romanuk (2009), listed in Table 1. I tested a sequence of potential `q` values from `0` (Type I) to `5` (Type III with large prey refuge). The results are in Figure 1. 
+
+```{r FRfig, fig.cap = "How the functional response of the prey changes with altered values of the parameter q"}
+matplot(prey, eaten, typ = "l", xlab = "Prey Biomass", ylab = "Prey Biomass Consumed")
+```
+
+In this model, as I have understood it the impact of the predator on the prey is equivalent to the impact of the prey on the predator. Thus the numerical response of the predator is the same magnitude as the functional response of the prey but of the opposite sign. This is accomplished as $F_ji = t(F_ij)$.
+
+## Full Model  
+
+The full model is implemented in R using a differential equation solver, `ode` in the R package `deSolve`. The function input to the solver for numerical integration is: 
+
+```{r fullmodel}
+conres <- function(t,states,par){
+  
+  with(as.list(c(states, par)), {
+    dB <- G.i(r = r.i, B = states, K = K) - x.i*states + rowSums((x.i * yij * FR(states, A, B.o, xpar = xpar) * states)) - rowSums((x.i * yij * t(FR(states, A, B.o, xpar = xpar)* states))/eij)
+    
+    list(c(dB))
+  })
+  
+}
+```
+
+The function takes in a series of times (`t`), intitial states (biomasses in this case, `states`), and a list of parameter values. To input into the solver, I have written a wrapper function that allows me to modify the food web structure, specific parameters and functions, and create plots.   
+
+```{r wrapper}
+Crmod <- function(Adj, t = 1:200, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = .2, B.o =.5, plot = FALSE){
+  require(deSolve)
+  
+  grow <- get.r(Adj)
+  
+  par <- list(
+    K = K,
+    x.i = x.i,
+    yij = yij,
+    eij = 1,
+    xpar = xpar,
+    B.o = B.o,
+    r.i = grow,
+    A = Adj,
+    G.i = G,
+    FR = FuncRes
+  )
+  
+  states <- runif(nrow(Adj), .5, 1)
+ 
+  out <- ode(y=states, times=t, func=method, parms=par, events = list(func = eventfun, time = t))
+  
+  if(plot) print(matplot(out[,-1], typ = "l", lwd = 2))
+  
+  return(out)
+}
+```
+
+## Parameter Values  
+
+Work by Williams and Martinez (2004) and Romanuk et al (2009) suggest that fixed values for a number of the required model parameters give similar dynamic results to drawing these parameter values from distributions with specified means and standard deviations. The suggested values are specified in the function above, and in Table 1 below. 
+
+```{r params, echo = F, comment = NA, results = "asis"}
+df <- data.frame(Parameter = factor(c("K", "x.i", "yij", "eij", "xpar", "B.o")), Value = c(1, .5, 6, 1, .2, .5))
+knitr::kable(df, format = "pandoc", caption = "Fixed parameter values for the dynamic model")
+```
+
+# Analysis
