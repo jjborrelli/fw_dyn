@@ -1,6 +1,11 @@
 library(igraph)
 library(NetIndices)
 library(modMax)
+library(deSolve)
+library(animation)
+library(reshape2)
+library(ggplot2)
+library(data.table)
 
 # C-R-model Functions
 
@@ -71,7 +76,7 @@ Crmod <- function(Adj, t = 1:200, G = G.i, method = conres, FuncRes = Fij, K = 1
  
   out <- ode(y=states, times=t, func=method, parms=par, events = list(func = eventfun, time = t))
   
-  if(plot) print(matplot(out[,-1], typ = "l", lwd = 2))
+  if(plot) print(matplot(out[,-1], typ = "l", lwd = 2, xlab = "Time", ylab = "Biomass"))
   
   return(out)
 }
@@ -159,7 +164,7 @@ web_props <- function(mat){
   
   #mot <- motif_counter(list(graph.adjacency(mat)))
   
-  df <- data.frame(N, C, Ltot, LD, clust, mod = mod$modularity, apl, diam, bas, top, mot)
+  df <- data.frame(N, C, Ltot, LD, clust, mod = mod$modularity, apl, diam, bas, top)
   return(df)
 }
 
@@ -274,14 +279,16 @@ netGIF <- function(mat, dyn, path1 = getwd()){
   require(animation)
   
   lay <- matrix(runif(nrow(mat)*2), ncol = 2)
-  s <- matrix(nrow = nrow(mat), ncol = 15)
+  s <- matrix(0, nrow = nrow(dyn), ncol = ncol(mat))
   
   ani.options(interval = .25)
   saveGIF(
     {
       for(i in 1:nrow(mat)){
-        s[i,] <-log(dyn[i, c(which(tail(dyn, 1) > 0)[-1])])+abs(min(log(dyn[i, c(which(tail(dyn, 1) > 0)[-1])])))
-        plot.igraph(graph.adjacency(mat), vertex.size = s[i,], edge.arrow.size = .5, layout = lay)
+        strength <- Fij(dyn2[i,-1], nm1, .5, .2)
+        lstr <- strength[,3][strength[,3] > 0]
+        s[i,c(which(dyn2[i,-1] > 0))] <-log(dyn2[i, c(which(dyn2[i,] > 0)[-1])])+abs(min(log(dyn2[i, c(which(dyn2[i,] > 0)[-1])])))
+        plot.igraph(graph.adjacency(strength), vertex.size = s[i,], edge.width = 0 , edge.arrow.size = .5, layout = lay)
       }
     },
     movie.name = "fwdyn.gif", interval = .25, nmax =500, ani.width = 600, ani.height = 600,
