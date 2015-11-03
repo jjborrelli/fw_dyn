@@ -8,7 +8,8 @@ output:
     number_sections: yes
     toc: yes
 ---
-# Introduction
+# Introduction  
+Some intro stuff about food web dynamics, structure and my past work. 
 
 ## Purpose
 To further explore the relationship between food web structure and dynamics. 
@@ -20,7 +21,7 @@ This project seeks a more mechanistic approach, by simulating the dynamics of mo
 
 # The Model
 
-I have borrowed a model of multispecies predator prey dynamics based on species biomass, that has been used in a number of publications. Specifically, I am using the form and parameterization suggested by Romanuk et al. (2009) and Williams and Martinez (2004). 
+I have borrowed a model of multispecies predator prey dynamics based on species biomass modified from Yodzis and Innes (1992), that has been used in a number of publications. Specifically, I am using the form and parameterization suggested by Romanuk et al. (2009) and Williams and Martinez (2004). 
 
 $$
 \frac{dB_i(t)}{dt} = G_i(B) - x_iB_i(t) + \sum_{j}^{n}\left(x_i y_{ij} F_{ij}(B) B_i(t) - x_j y_{ji} F_{ji}(B) B_j(t) / e_{ji} \right)
@@ -148,4 +149,89 @@ df <- data.frame(Parameter = factor(c("K", "x.i", "yij", "eij", "xpar", "B.o")),
 knitr::kable(df, format = "pandoc", caption = "Fixed parameter values for the dynamic model")
 ```
 
-# Analysis
+# Analysis  
+
+I want to know how population dynamics based extinctions alters the structure of the food web. To do that I need to be able to compare the initial and final food webs. 
+
+## Functions
+The `web_props` function below takes the adjacency matrix and computes several network properties: the number of species (`N`), the connectance (`C`, $\frac{L}{N*(N-1)}$), number of links (`Ltot`), link density (`LD`), clustering coefficient (`clust`), modularity (`mod`), average path length (average food chain length, `apl`), diameter (longest shortest food chain, `diam`), number of basal species (`bas`), and number of top predators (`top`).
+
+```{r web_propsFUN}
+web_props <- function(mat){
+  require(NetIndices)
+  require(modMax)
+  
+  N <- nrow(mat)
+  C <- sum(mat)/(nrow(mat)*(nrow(mat)-1))
+  
+  genind <- GenInd(mat)
+  Ltot <- genind$Ltot
+  LD <- genind$LD
+  
+  g <- graph.adjacency(mat)
+  
+  clust <- transitivity(g)
+  apl <- average.path.length(g)
+  diam <- diameter(g)
+  
+  bas <- sum(degree(g, mode = "in") == 0)
+  top <- sum(degree(g, mode = "out") == 0)
+  
+  mod <- simulatedAnnealing(mat, fixed = 1000)
+  
+  df <- data.frame(N, C, Ltot, LD, clust, mod = mod$modularity, apl, diam, bas, top, mot)
+  return(df)
+}
+```
+
+I also want to know how the motif structure of the network changes after extinctions. The `motif_counter` function (same that I used in Borrelli (2015)), gives the number of each of the three species subgraphs in the network.  
+
+```{r motifFUN}
+motif_counter <- function(graph.lists){
+  require(igraph)
+  
+  if(!is.list(graph.lists)){
+    stop("The input should be a list of graph objects")
+  }
+  
+  triad.count <- lapply(graph.lists, triad.census)
+  triad.matrix <- matrix(unlist(triad.count), nrow = length(graph.lists), ncol = 16, byrow = T)
+  colnames(triad.matrix) <- c("empty", "single", "mutual", "s5", "s4", "s1", "d4",
+                              "d3", "s2", "s3","d8", "d2", "d1", "d5", "d7", "d6")
+  
+  triad.df <- as.data.frame(triad.matrix)
+  
+  motif.data.frame <- data.frame(s1 = triad.df$s1, s2 = triad.df$s2, s3 = triad.df$s3, s4 = triad.df$s4, 
+                                 s5 = triad.df$s5, d1 = triad.df$d1, d2 = triad.df$d2, d3 = triad.df$d3, d4 = triad.df$d4,
+                                 d5 = triad.df$d5, d6 = triad.df$d6, d7 = triad.df$d7, d8 = triad.df$d8)
+  
+  return(motif.data.frame)
+}
+```
+
+Because it is not worthwhile to compare the counts of motifs in initial and final networks (the difference in number of species and connectance precludes direct comparison), I wrote a function to compare the motif count in the final network to networks of the same size created by assuming random extinctions. For example, if the final network has 30 species, and the initial food web had 100, I create _n_ random adjacency matrices with 30 of the initial 100 species chosen at random. 
+
+```{r relrand}
+rel.rand <- function(mat, n, iter = 10000){
+  require(igraph)
+  rands <- list()
+  for(i in 1:iter){
+    spp <- sample(1:nrow(mat), n)
+    rands[[i]] <- mat[spp, spp]
+  }
+  rands.g <- lapply(rands, graph.adjacency)
+  mot <- motif_counter(rands.g)
+  return(mot)
+}
+
+rel.rand.z <- function(mat, dyn, iter = 10000){
+  m1 <- motif_counter(list(graph.adjacency(mat[which(tail(dyn, 1)[-1] > 0),which(tail(dyn, 1)[-1] > 0)])))
+  n <- sum(tail(dyn, 1)[-1] > 0)
+  m2 <- rel.rand(mat = mat, n = n, iter = iter)
+  
+  zscore <- (m1 - colMeans(m2))/apply(m2, 2, sd)
+  
+  return(zscore)
+}
+```
+

@@ -137,6 +137,8 @@ motif_counter <- function(graph.lists){
 
 web_props <- function(mat){
   require(NetIndices)
+  require(modMax)
+  
   N <- nrow(mat)
   C <- sum(mat)/(nrow(mat)*(nrow(mat)-1))
   
@@ -153,9 +155,11 @@ web_props <- function(mat){
   bas <- sum(degree(g, mode = "in") == 0)
   top <- sum(degree(g, mode = "out") == 0)
   
-  mod <- simulatedAnnealing(mat, fixed = 100)
+  mod <- simulatedAnnealing(mat, fixed = 1000)
   
-  df <- data.frame(N, C, Ltot, LD, clust, mod = mod$modularity, apl, diam, bas, top)
+  #mot <- motif_counter(list(graph.adjacency(mat)))
+  
+  df <- data.frame(N, C, Ltot, LD, clust, mod = mod$modularity, apl, diam, bas, top, mot)
   return(df)
 }
 
