@@ -8,6 +8,11 @@ output:
     number_sections: yes
     toc: yes
 ---
+```{r, message = F, echo = F}
+library(knitr)
+opts_chunk$set(tidy = T)
+```
+
 # Introduction  
 Some intro stuff about food web dynamics, structure and my past work. 
 
@@ -87,7 +92,7 @@ for(j in 1:length(x)){
 ```
 I ran the simulation using the same fixed parameter values I used in the full model based on Romanuk (2009), listed in Table 1. I tested a sequence of potential `q` values from `0` (Type I) to `5` (Type III with large prey refuge). The results are in Figure 1. 
 
-```{r FRfig, fig.cap = "How the functional response of the prey changes with altered values of the parameter q"}
+```{r FRfig, fig.height = 5, fig.width = 6, fig.cap = "How the functional response of the prey changes with altered values of the parameter q"}
 matplot(prey, eaten, typ = "l", xlab = "Prey Biomass", ylab = "Prey Biomass Consumed")
 ```
 
@@ -132,13 +137,29 @@ Crmod <- function(Adj, t = 1:200, G = G.i, method = conres, FuncRes = Fij, K = 1
   
   states <- runif(nrow(Adj), .5, 1)
  
-  out <- ode(y=states, times=t, func=method, parms=par, events = list(func = eventfun, time = t))
+  out <- ode(y=states, times=t, func=method, parms=par, 
+             events = list(func = eventfun, time = t))
   
   if(plot) print(matplot(out[,-1], typ = "l", lwd = 2))
   
   return(out)
 }
 ```
+
+In the `ode` function I have included an _event_ that occurs when a species biomass dips below a set threshold ($10^-10$) it goes extinct, and it's biomass is replaced with 0. The event takes the function: 
+
+```{r eventfun}
+eventfun <- function(times, states, parms){
+  with(as.list(states), {
+    for(i in 1:length(states)){
+      if(states[i] < 10^-10){states[i] <- 0}else{states[i]} 
+    }
+    return(c(states))
+  })
+}
+```
+
+The function's inputs are the times going into the differential equation solver, the initial state variables, and the list of parameter values.
 
 ## Parameter Values  
 
