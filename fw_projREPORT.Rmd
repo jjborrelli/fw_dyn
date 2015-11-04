@@ -3,8 +3,10 @@ title: "Food Web Structure and Dynamics"
 author: "Jonathan J. Borrelli"
 date: "Monday, November 02, 2015"
 output:
+  html_document:
+    toc: yes
   pdf_document:
-    fig_caption: true
+    fig_caption: yes
     number_sections: yes
     toc: yes
 ---
@@ -177,29 +179,36 @@ The first thing to do is generating a model food web on which I can generate the
 
 ```{r niche}
 niche.model<-function(S,C){
-  new.mat<-matrix(0,nrow=S,ncol=S)
-  ci<-vector()
-  niche<-runif(S,0,1)
-  r<-rbeta(S,1,((1/(2*C))-1))*niche
-  
-  for(i in 1:S){
-    ci[i]<-runif(1,r[i]/2,niche[i])
-  }
-  
-  r[which(niche==min(niche))]<-.00000001
-  
-  for(i in 1:S){
+  require(igraph)
+  connected = FALSE
+  while(!connected){  
+    new.mat<-matrix(0,nrow=S,ncol=S)
+    ci<-vector()
+    niche<-runif(S,0,1)
+    r<-rbeta(S,1,((1/(2*C))-1))*niche
     
-    for(j in 1:S){
-      if(niche[j]>(ci[i]-(.5*r[i])) && niche[j]<(ci[i]+.5*r[i])){
-        new.mat[j,i]<-1
+    for(i in 1:S){
+      ci[i]<-runif(1,r[i]/2,niche[i])
+    }
+    
+    r[which(niche==min(niche))]<-.00000001
+    
+    for(i in 1:S){
+      
+      for(j in 1:S){
+        if(niche[j]>(ci[i]-(.5*r[i])) && niche[j]<(ci[i]+.5*r[i])){
+          new.mat[j,i]<-1
+        }
       }
     }
+    
+    new.mat<-new.mat[,order(apply(new.mat,2,sum))]
+    
+    connected <- is.connected(graph.adjacency(new.mat))
   }
-  
-  new.mat<-new.mat[,order(apply(new.mat,2,sum))]
   return(new.mat)
 }
+
 
 ```
 
@@ -207,7 +216,7 @@ I start with a niche model food web with `100` species and a connectance of `0.2
 
 
 ```{r in-web, results = "asis"}
-nm1 <- niche.model(S = 100, C = .2)
+nm1 <- niche.model(S = 30, C = .1)
 wp.in <- web_props(nm1)
 
 kable(wp.in, format = "pandoc", caption = "Whole web properties of the initial niche model food web")
@@ -216,20 +225,27 @@ kable(wp.in, format = "pandoc", caption = "Whole web properties of the initial n
 The next step is to use the model to simulate the dynamics of the food web. This function will output a table of biomasses at each time step. 
 
 ```{r dynamic-EX, fig.width = 8, fig.height = 6, fig.cap = "Biomass dynamics of a niche model food web"}
-dyn2 <- Crmod(Adj = nm1, t = 1:500, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = .2, B.o =.5, plot = TRUE)
+dyn2 <- Crmod(Adj = nm1, t = 1:100, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = .2, B.o =.5, plot = F)
+matplot(dyn2[,-1], typ = "l", lwd = 2, xlab = "Time", ylab = "Biomass")
 ```
 
-The dynamics of the web can be visualized: 
+The dynamics of the web can be visualized through time: 
 
-```{r webdyn, fig.width=7, fig.height=6, fig.show='animate',eval = F}
-lay <- matrix(runif(nrow(nm1)*2), ncol = 2)
+```{r webdyn, echo = F, fig.width = 7, fig.height = 6, fig.show = 'animate'}
+gr <- graph.adjacency(nm1)
+lay <- matrix(c(layout.sphere(graph.adjacency(nm1))[,1], TrophInd(nm1)$TL), ncol = 2)
 s <- matrix(0, nrow = nrow(dyn2), ncol = ncol(nm1))
-par(mar = rep(.1, 4))
-for(i in 1:500){
-  strength <- melt(Fij(dyn2[i,-1], nm1, .5, .2))
-  lstr <- strength[,3][strength[,3] > 0]
+par(mar = rep(.2, 4))
+for(i in 1:100){
+  fr <- Fij(dyn2[i,-1], nm1, .5, .2)
+  strength <- melt(fr)[,3][melt(fr)[,3] > 0]
+  fr[fr > 0 ] <- 1
+  
+  g.new <- graph.adjacency(t(fr))
+  E(g.new)$weight <- strength/max(strength)*10
   s[i,c(which(dyn2[i,-1] > 0))] <-log(dyn2[i, c(which(dyn2[i,] > 0)[-1])])+abs(min(log(dyn2[i, c(which(dyn2[i,] > 0)[-1])])))
-  plot.igraph(graph.adjacency(nm1), vertex.size = s[i,], edge.width = lstr , edge.arrow.size = .5, layout = lay)
+  
+  plot.igraph(g.new, vertex.size = s[i,], edge.width = E(g.new)$weight, layout = lay)
 }
 ```
 
@@ -320,3 +336,5 @@ rel.rand.z <- function(mat, dyn, iter = 10000){
 }
 ```
 
+
+## Analysis
