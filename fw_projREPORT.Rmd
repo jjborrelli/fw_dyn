@@ -231,7 +231,7 @@ matplot(dyn2[,-1], typ = "l", lwd = 2, xlab = "Time", ylab = "Biomass")
 
 The dynamics of the web can be visualized through time: 
 
-```{r webdyn, echo = F, fig.width = 7, fig.height = 6, fig.show = 'animate'}
+```{r webdyn, echo = F, fig.width = 7, fig.height = 6, fig.show = 'animate', eval = F}
 gr <- graph.adjacency(nm1)
 lay <- matrix(c(layout.sphere(graph.adjacency(nm1))[,1], TrophInd(nm1)$TL), ncol = 2)
 s <- matrix(0, nrow = nrow(dyn2), ncol = ncol(nm1))
@@ -338,3 +338,55 @@ rel.rand.z <- function(mat, dyn, iter = 10000){
 
 
 ## Analysis
+
+```{r}
+CRmod.gen <- function(S, con, network, xpar, ...){
+  # create model network
+  if(network == "niche"){amat <- niche.model(S = S, C = con)}
+  if(network == "erdosrenyi"){
+    ag <- erdos.renyi.game(n = S, p.or.m = con, type = "gnp", directed = T)
+    amat <- get.adjacency(ag, sparse = F)
+  }
+  
+  # dynamic model
+  
+  dyn1 <- Crmod(Adj = amat, t = 1:500, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = xpar, B.o =.5, plot = FALSE)
+  
+  # get motif scores
+  
+  amat2 <- amat[which(tail(dyn1[,-1], 1) > 0),which(tail(dyn1[,-1], 1) > 0)]
+  
+  #z1 <- data.frame(time = factor("init"), get.zscore(amat))
+  #z2 <- data.frame(time = factor("final"), get.zscore(amat2))
+  #return(rbind(z1, z2))
+  
+  z <- rel.rand.z(amat, dyn1, iter = 10000)
+  wp1 <- cbind(melt(web_props(amat)), web = "initial")
+  wp2 <-cbind(melt(web_props(amat2)), web = "final")
+  
+  return(list(wp = rbind(wp1, wp2), z = z))
+}
+```
+
+```{r analysis1, eval = F}
+results <- list()
+results2 <- list()
+z.results <- list()
+z.results2 <- list()
+for(i in 1:10){
+  test <- CRmod.gen(100, .2, "erdosrenyi", xpar = 1)
+  test2 <- CRmod.gen(100, .2, "erdosrenyi", xpar = .2)
+  z.results[[i]] <- data.frame(q = 1, iter = i, test$z)
+  z.results2[[i]] <- data.frame(q = .2, iter = i, test2$z)
+  results[[i]] <- data.frame(q = 1, iter = i, test$wp)
+  results2[[i]] <- data.frame(q = .2, iter = i, test2$wp)
+  print(i)
+}
+z.all <- melt(rbindlist(z.results), id.vars = c(1,2))
+z.all2 <- melt(rbindlist(z.results2), id.vars = c(1,2))
+wp.all <- rbindlist(results)
+wp.all2 <- rbindlist(results2)
+
+#ggplot(rbind(z.all, z.all2), aes(x = variable, y = value, fill = factor(q))) + geom_boxplot()
+```
+

@@ -248,7 +248,10 @@ rel.rand.z <- function(mat, dyn, iter = 10000){
 CRmod.gen <- function(S, con, network, xpar, ...){
   # create model network
   if(network == "niche"){amat <- niche.model(S = S, C = con)}
-  if(network == "erdosrenyi"){ag <- erdos.renyi.game(n = S, p.or.m = con, type = "gnp", directed = T); amat <- get.adjacency(ag, sparse = F)}
+  if(network == "erdosrenyi"){
+    ag <- erdos.renyi.game(n = S, p.or.m = con, type = "gnp", directed = T)
+    amat <- get.adjacency(ag, sparse = F)
+  }
   
   # dynamic model
   
@@ -263,7 +266,10 @@ CRmod.gen <- function(S, con, network, xpar, ...){
   #return(rbind(z1, z2))
   
   z <- rel.rand.z(amat, dyn1, iter = 10000)
-  return(z)
+  wp1 <- cbind(melt(web_props(amat)), web = "initial")
+  wp2 <-cbind(melt(web_props(amat2)), web = "final")
+  
+  return(list(rbind(wp1, wp2)), z)
 }
 
 
