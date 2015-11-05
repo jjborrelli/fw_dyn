@@ -361,10 +361,9 @@ CRmod.gen <- function(S, con, network, xpar, ...){
   #return(rbind(z1, z2))
   
   z <- rel.rand.z(amat, dyn1, iter = 10000)
-  wp1 <- cbind(melt(web_props(amat)), web = "initial")
-  wp2 <-cbind(melt(web_props(amat2)), web = "final")
-  
-  return(list(wp = rbind(wp1, wp2), z = z))
+  wp <- cbind(melt(web_props(amat), variable.name = "property", value.name = "initial"), final = melt(web_props(amat2))[,2])
+    
+  return(list(wp = wp, z = z))
 }
 ```
 
@@ -373,7 +372,7 @@ results <- list()
 results2 <- list()
 z.results <- list()
 z.results2 <- list()
-for(i in 1:10){
+for(i in 1:2){
   test <- CRmod.gen(100, .2, "erdosrenyi", xpar = 1)
   test2 <- CRmod.gen(100, .2, "erdosrenyi", xpar = .2)
   z.results[[i]] <- data.frame(q = 1, iter = i, test$z)
