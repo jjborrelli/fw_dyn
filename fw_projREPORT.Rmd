@@ -368,13 +368,36 @@ CRmod.gen <- function(S, con, network, xpar, ...){
 ```
 
 ```{r analysis1, eval = F}
-results <- list()
-results2 <- list()
-z.results <- list()
-z.results2 <- list()
-for(i in 1:2){
-  test <- CRmod.gen(100, .2, "erdosrenyi", xpar = 1)
-  test2 <- CRmod.gen(100, .2, "erdosrenyi", xpar = .2)
+
+require(doSNOW)
+require(parallel)
+require(data.table)
+
+#make the cluster
+cl <- makeCluster(detectCores()-1)
+registerDoSNOW(cl)
+
+RESULT <- foreach(i = 1:2) %dopar%{
+  source("./Rscripts/MODELfunctions.R")
+  test <- CRmod.gen(200, .1, modTYPE[i], xpar = 1)
+  test2 <- CRmod.gen(200, .1, modTYPE[i], xpar = .2)
+  z.results <- data.frame(model = modTYPE[i], q = 1, iter = i, test$z)
+  z.results2 <- data.frame(model = modTYPE[i], q = .2, iter = i, test2$z)
+  results <- data.frame(model = modTYPE[i], q = 1, iter = i, test$wp)
+  results2 <- data.frame(model = modTYPE[i], q = .2, iter = i, test2$wp)
+  
+  return(list(z.results, z.results2, results, results2))
+}
+
+modTYPE <- c(rep("erdosrenyi", 100), rep("niche", 100))
+
+results <- lapply(1:200, function(x) data.frame(rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10)))
+results2 <- lapply(1:200, function(x) data.frame(rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10)))
+z.results <- lapply(1:200, function(x) data.frame(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+z.results2 <- lapply(1:200, function(x) data.frame(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+for(i in 101:200){
+  test <- CRmod.gen(200, .1, "niche", xpar = 1)
+  test2 <- CRmod.gen(200, .1, "niche", xpar = .2)
   z.results[[i]] <- data.frame(q = 1, iter = i, test$z)
   z.results2[[i]] <- data.frame(q = .2, iter = i, test2$z)
   results[[i]] <- data.frame(q = 1, iter = i, test$wp)
@@ -387,5 +410,6 @@ wp.all <- rbindlist(results)
 wp.all2 <- rbindlist(results2)
 
 #ggplot(rbind(z.all, z.all2), aes(x = variable, y = value, fill = factor(q))) + geom_boxplot()
+ggplot(rbind(wp.all, wp.all2), aes(x = initial, y = final, fill = factor(q))) + geom_point() + facet_wrap(~property, scales = "free")
 ```
 
