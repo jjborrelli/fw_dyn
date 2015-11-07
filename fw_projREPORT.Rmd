@@ -377,7 +377,7 @@ require(data.table)
 cl <- makeCluster(detectCores()-1)
 registerDoSNOW(cl)
 
-RESULT <- foreach(i = 1:2) %dopar%{
+RESULTS <- foreach(i = 1:100) %dopar%{
   source("./Rscripts/MODELfunctions.R")
   test <- CRmod.gen(200, .1, modTYPE[i], xpar = 1)
   test2 <- CRmod.gen(200, .1, modTYPE[i], xpar = .2)
@@ -388,6 +388,8 @@ RESULT <- foreach(i = 1:2) %dopar%{
   
   return(list(z.results, z.results2, results, results2))
 }
+
+stopCluster(cl)
 
 modTYPE <- c(rep("erdosrenyi", 100), rep("niche", 100))
 

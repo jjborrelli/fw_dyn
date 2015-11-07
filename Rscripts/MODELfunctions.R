@@ -341,7 +341,7 @@ eig.analysis <- function(n, matrices){
 
 
 ## For parallel
-modTYPE <- c(rep("erdosrenyi", 100), rep("niche", 100))
+modTYPE <- c(rep("erdosrenyi", 50), rep("niche", 50))
 
 results <- lapply(1:200, function(x) data.frame(rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10)))
 results2 <- lapply(1:200, function(x) data.frame(rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10)))
