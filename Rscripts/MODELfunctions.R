@@ -266,10 +266,11 @@ CRmod.gen <- function(S, con, network, xpar, ...){
   #return(rbind(z1, z2))
   
   z <- rel.rand.z(amat, dyn1, iter = 10000)
-  wp1 <- cbind(melt(web_props(amat)), web = "initial")
-  wp2 <-cbind(melt(web_props(amat2)), web = "final")
+  z1 <- z/sqrt(sum(z^2, na.rm = T))
+  t(apply(zscore.t, 1, function(x){x/sqrt(sum(x^2, na.rm = T))}))
+  wp <- cbind(melt(web_props(amat), variable.name = "property", value.name = "initial"), final = melt(web_props(amat2))[,2])
   
-  return(list(rbind(wp1, wp2)), z)
+  return(list(wp = wp, z = z1))
 }
 
 
@@ -341,10 +342,14 @@ eig.analysis <- function(n, matrices){
 
 
 ## For parallel
-modTYPE <- c(rep("erdosrenyi", 50), rep("niche", 50))
+tot = 100
+modTYPE <- c(rep("erdosrenyi", tot/2), rep("niche", tot/2))
 
-results <- lapply(1:200, function(x) data.frame(rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10)))
-results2 <- lapply(1:200, function(x) data.frame(rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10)))
-z.results <- lapply(1:200, function(x) data.frame(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
-z.results2 <- lapply(1:200, function(x) data.frame(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+results <- lapply(1:tot, function(x) data.frame(rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10)))
+results2 <- lapply(1:tot, function(x) data.frame(rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10)))
+z.results <- lapply(1:tot, function(x) data.frame(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+z.results2 <- lapply(1:tot, function(x) data.frame(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
 
+z.res <- lapply(1:tot, function(x){rbind(data.frame(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0), data.frame(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))})
+
+res <- lapply(1:1, function(x) data.frame(rep(0, 20), rep(0, 20), rep(0, 20), rep(0, 20), rep(0, 20)))

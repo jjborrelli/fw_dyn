@@ -9,6 +9,7 @@ output:
     fig_caption: yes
     number_sections: yes
     toc: yes
+bibliography: biblio1.bib    
 ---
 ```{r, message = F, echo = F, warning = F}
 library(knitr)
@@ -16,20 +17,19 @@ opts_chunk$set(tidy = T, message = F, warning = F)
 source("./Rscripts/MODELfunctions.R")
 ```
 
-# Introduction  
-Some intro stuff about food web dynamics, structure and my past work. 
+# Introduction 
 
 ## Purpose
 To further explore the relationship between food web structure and dynamics. 
 
 ## Hypothesis
-In previous work I have asserted that observed food web structure emerges from the preferential loss of unstable configurations. This was supported by correlational evidence that the basic building blocks of food webs, short food chains and motifs, are also more likely to be stable than other potential building blocks of similar types (e.g., longer food chains or other three species subgraphs). 
+In previous work [@Borrelli2014; @Borrelli2015; @Borrelli2015a] I have asserted that observed food web structure emerges from the preferential loss of unstable configurations. This was supported by correlational evidence that the basic building blocks of food webs, short food chains and motifs, are also more likely to be stable than other potential building blocks of similar types (e.g., longer food chains or other three species subgraphs). 
 
 This project seeks a more mechanistic approach, by simulating the dynamics of model food webs. Based on my prior work I suggest that the structure of the food web following extinction events (from simulated dynamics) will exhibit a higher proportion of stable components via loss of species that contribute to destabilizing building blocks.  
 
 # The Model
 
-I have borrowed a model of multispecies predator prey dynamics based on species biomass modified from Yodzis and Innes (1992), that has been used in a number of publications. Specifically, I am using the form and parameterization suggested by Romanuk et al. (2009) and Williams and Martinez (2004). 
+I have borrowed a model of multispecies predator prey dynamics based on species biomass modified from Yodzis and Innes [-@Yodzis1992], that has been used in a number of publications. Specifically, I am using the form and parameterization suggested by Romanuk et al. [-@Romanuk2009] and Williams and Martinez [-@Williams2004]. 
 
 $$
 \frac{dB_i(t)}{dt} = G_i(B) - x_iB_i(t) + \sum_{j}^{n}\left(x_i y_{ij} F_{ij}(B) B_i(t) - x_j y_{ji} F_{ji}(B) B_j(t) / e_{ji} \right)
@@ -379,39 +379,36 @@ registerDoSNOW(cl)
 
 RESULTS <- foreach(i = 1:100) %dopar%{
   source("./Rscripts/MODELfunctions.R")
-  test <- CRmod.gen(200, .1, modTYPE[i], xpar = 1)
-  test2 <- CRmod.gen(200, .1, modTYPE[i], xpar = .2)
-  z.results <- data.frame(model = modTYPE[i], q = 1, iter = i, test$z)
-  z.results2 <- data.frame(model = modTYPE[i], q = .2, iter = i, test2$z)
-  results <- data.frame(model = modTYPE[i], q = 1, iter = i, test$wp)
-  results2 <- data.frame(model = modTYPE[i], q = .2, iter = i, test2$wp)
+  test <- CRmod.gen(60, .1, modTYPE[i], xpar = 1)
+  test2 <- CRmod.gen(60, .1, modTYPE[i], xpar = .2)
+  #z.results <- data.frame(model = modTYPE[i], q = 1, iter = i, test$z)
+  #z.results2 <- data.frame(model = modTYPE[i], q = .2, iter = i, test2$z)
+  z.res <- data.frame(model = rep(modTYPE[i],2), q = c(1,.2), iter = c(i,i), rbind(test$z, test2$z))
   
-  return(list(z.results, z.results2, results, results2))
+  #results <- data.frame(model = modTYPE[i], q = 1, iter = i, test$wp)
+  #results2 <- data.frame(model = modTYPE[i], q = .2, iter = i, test2$wp)
+  res <- data.frame(model = rep(modTYPE[i],2), q = rep(c(1,.2), each = 10), iter = rep(i,20), rbind(test$wp, test2$wp))
+  
+  return(list(z.res, res))
 }
 
 stopCluster(cl)
 
-modTYPE <- c(rep("erdosrenyi", 100), rep("niche", 100))
+z1 <- rbindlist(lapply(RESULTS, "[[", 1))
+z2 <- melt(z1, id.vars = c("model", "q", "iter"), variable.name = "motif" )
+z2$value[is.na(z2$value)] <- 0
+r1 <- rbindlist(lapply(RESULTS, "[[", 2))
 
-results <- lapply(1:200, function(x) data.frame(rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10)))
-results2 <- lapply(1:200, function(x) data.frame(rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10)))
-z.results <- lapply(1:200, function(x) data.frame(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
-z.results2 <- lapply(1:200, function(x) data.frame(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
-for(i in 101:200){
-  test <- CRmod.gen(200, .1, "niche", xpar = 1)
-  test2 <- CRmod.gen(200, .1, "niche", xpar = .2)
-  z.results[[i]] <- data.frame(q = 1, iter = i, test$z)
-  z.results2[[i]] <- data.frame(q = .2, iter = i, test2$z)
-  results[[i]] <- data.frame(q = 1, iter = i, test$wp)
-  results2[[i]] <- data.frame(q = .2, iter = i, test2$wp)
-  print(i)
-}
-z.all <- melt(rbindlist(z.results), id.vars = c(1,2))
-z.all2 <- melt(rbindlist(z.results2), id.vars = c(1,2))
-wp.all <- rbindlist(results)
-wp.all2 <- rbindlist(results2)
+ggplot(z2, aes(x = motif, y = value, fill = factor(q))) + geom_boxplot() + geom_line(aes(x = as.numeric(motif), y = 2)) + facet_wrap(~model)
+
+ggplot(r1, aes(x = initial, y = final, col = model)) + geom_point() + geom_abline(slope = 1, intercept = 0) + facet_wrap(~property, scales = "free")
+#z.all <- melt(rbindlist(z.results), id.vars = c(1,2))
+#z.all2 <- melt(rbindlist(z.results2), id.vars = c(1,2))
+#wp.all <- rbindlist(results)
+#wp.all2 <- rbindlist(results2)
 
 #ggplot(rbind(z.all, z.all2), aes(x = variable, y = value, fill = factor(q))) + geom_boxplot()
 ggplot(rbind(wp.all, wp.all2), aes(x = initial, y = final, fill = factor(q))) + geom_point() + facet_wrap(~property, scales = "free")
 ```
 
+# References
