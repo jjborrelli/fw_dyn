@@ -282,23 +282,28 @@ vis_dyn <- function(dyn, t.start = 1, t.end = 200){
   print(g)
 }
 
-netGIF <- function(mat, dyn, path1 = getwd()){
+netHTML <- function(mat, dyn, path1 = getwd()){
   require(animation)
   
-  lay <- matrix(runif(nrow(mat)*2), ncol = 2)
+  lay <- matrix(c(layout.sphere(graph.adjacency(nm1))[,1], TrophInd(nm1)$TL), ncol = 2)
   s <- matrix(0, nrow = nrow(dyn), ncol = ncol(mat))
   
   ani.options(interval = .25)
-  saveGIF(
+  saveHTML(
     {
-      for(i in 1:nrow(mat)){
-        strength <- Fij(dyn2[i,-1], nm1, .5, .2)
-        lstr <- strength[,3][strength[,3] > 0]
+      for(i in 1:50){
+        fr <- Fij(dyn2[i,-1], nm1, .5, .2)
+        strength <- melt(fr)[,3][melt(fr)[,3] > 0]
+        fr[fr > 0 ] <- 1
+        
+        g.new <- graph.adjacency(t(fr))
+        E(g.new)$weight <- strength/max(strength)*10
         s[i,c(which(dyn2[i,-1] > 0))] <-log(dyn2[i, c(which(dyn2[i,] > 0)[-1])])+abs(min(log(dyn2[i, c(which(dyn2[i,] > 0)[-1])])))
-        plot.igraph(graph.adjacency(strength), vertex.size = s[i,], edge.width = 0 , edge.arrow.size = .5, layout = lay)
+        
+        plot.igraph(g.new, vertex.size = s[i,], edge.width = E(g.new)$weight, layout = lay)
       }
     },
-    movie.name = "fwdyn.gif", interval = .25, nmax =500, ani.width = 600, ani.height = 600,
+    htmlfile = "fwdyn.html", interval = .25, nmax =500, ani.width = 500, ani.height = 500,
     outdir = path1
   )
 }
@@ -340,6 +345,9 @@ eig.analysis <- function(n, matrices){
   return(eigenMATRIX)
 }
 
+# For slides
+set.seed(12)
+nm1 <- niche.model(S = 30, C = .1)
 
 ## For parallel
 tot = 100

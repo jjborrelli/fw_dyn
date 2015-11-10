@@ -1,0 +1,132 @@
+---
+title: "Dynamics of Food Webs"
+author: "Jonathan J. Borrelli"
+date: "Tuesday, November 10, 2015"
+output: ioslides_presentation
+---
+```{r, message = F, echo = F, warning = F}
+library(knitr)
+opts_chunk$set(tidy = T, message = F, warning = F, echo = F)
+source("./Rscripts/MODELfunctions.R")
+```
+
+## Purpose
+To further explore the relationship between food web structure and dynamics. 
+
+## Hypothesis
+Food web structure emerges from the preferential loss of unstable configurations. 
+
+By simulating the dynamics of model food webs the structure of the food web following extinction events will exhibit a higher proportion of stable components via loss of species that contribute to destabilizing building blocks.  
+
+## The Model
+
+I have borrowed a model of multispecies predator prey dynamics based on species biomass modified from Yodzis and Innes (1992), that has been used in a number of publications. Specifically, I am using the form and parameterization suggested by Romanuk et al. (2009) and Williams and Martinez (2004). 
+
+$$
+\frac{dB_i(t)}{dt} = G_i(B) - x_iB_i(t) + \\ \sum_{j}^{n}\left(x_i y_{ij} F_{ij}(B) B_i(t) - \\ x_j y_{ji} F_{ji}(B) B_j(t) / e_{ji} \right)
+$$
+
+# Terms in the model 
+
+## Growth
+
+The first term, $G_i(B)$, is the function describing primary production of producer species in the absence of predation. Producers grow exponentially with density dependence. 
+
+$$
+G_i(B) = r_i B_i(t) (1 - \frac{B_i(t)}{K_i})
+$$
+
+
+In the equation, $r_i$ is the intrinsic rate of increase, $B_i$ is the biomass of population _i_, and $K_i$ is the carrying capacity of population _i_.
+
+## Consumption
+
+The consumption of resource _j_ by consumer _i_ is modeled by: 
+$$
+F_{ij}(B) = \frac{B_j^{1+q}}{\sum_k B_k^{1+q} + B_0^{1+q}}
+$$
+
+Here, $B_j$ is the biomass of the consumed resource, in the denominator the summed biomass across all $k$ resources, and $B_0$ is the half saturation density. The parameter $q$ is a tuning parameter that lets the modeller shift the functional response between a type II ($q = 0$) and a type III ($q = 1$). The functional response above defines the fraction of a predator's maximal ingestion that is realized at a given time step. 
+
+## Functional Response
+
+```{r FRsim, echo = F, cache = TRUE}
+K = 1
+x.i = .5
+yij = 6
+xpar = 0
+B.o = .5
+A =  matrix(c(0,0,1,0), nrow = 2)
+FR = Fij
+
+prey <- seq(0, 2, .01)
+pred <- .5
+x <- seq(0, 5, .2)
+eaten <- matrix(nrow = length(prey), ncol = length(x))
+for(j in 1:length(x)){
+  for(i in 1:length(prey)){
+    states = c(prey[i], pred)
+    eaten[i,j] <- rowSums((x.i * yij * FR(states, A, B.o, xpar = x[j]) * states))[2]
+  }
+}
+```
+
+```{r FRfig, fig.height = 5, fig.width = 6, fig.cap = "How the functional response of the prey changes with altered values of the parameter q", echo = F}
+matplot(prey, eaten, typ = "l", xlab = "Prey Biomass", ylab = "Prey Biomass Consumed")
+```
+
+## Parameter Values  
+
+
+```{r params, echo = F, comment = NA, results = "asis"}
+df <- data.frame(Parameter = factor(c("K", "x.i", "yij", "eij", "xpar", "B.o")), Value = c(1, .5, 6, 1, .2, .5))
+kable(df, format = "pandoc", caption = "Fixed parameter values for the dynamic model")
+```
+
+# Model Run
+
+## Create a network 
+
+
+```{r,  fig.height = 6, fig.width = 6, fig.align='center'}
+lay <- matrix(c(layout.sphere(graph.adjacency(nm1))[,1], TrophInd(nm1)$TL), ncol = 2)
+plot(graph.adjacency(nm1), layout = lay)
+```
+
+
+## Get its properties
+
+```{r, comment = NA, results = "asis"}
+wp.in <- web_props(nm1)
+kable(wp.in, format = "pandoc", caption = "Whole web properties of the initial niche model food web")
+```
+
+## Run Dynamics 
+
+```{r, cache = T}
+dyn2 <- Crmod(Adj = nm1, t = 1:100, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = .2, B.o =.5, plot = F)
+
+```
+
+<iframe src="fwdyn.html"></iframe>
+
+
+## Results
+
+```{r dynamic-EX, echo = F, fig.width = 8, fig.height = 5, fig.cap = "Biomass dynamics of a niche model food web"}
+matplot(dyn2[,-1], typ = "l", lwd = 2, xlab = "Time", ylab = "Biomass")
+```
+
+## Motifs
+
+```{r}
+load(file = "fw-test.Rdata")
+ggplot(z2, aes(x = motif, y = value, fill = factor(q))) + geom_boxplot() + geom_line(aes(x = as.numeric(motif), y = 0)) + facet_wrap(~model, scales = "free_y")
+```
+
+## Other Structural Properties
+
+```{r}
+ggplot(r1[which(r1$property == "C"|r1$property == "apl"|r1$property == "top")], aes(x = initial, y = final, col = model)) + geom_point() + geom_abline(slope = 1, intercept = 0) + facet_wrap(~property, scales = "free")
+```
+
