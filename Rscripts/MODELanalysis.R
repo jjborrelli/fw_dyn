@@ -2,6 +2,7 @@ library(reshape2)
 library(ggplot2)
 library(data.table)
 library(animation)
+library(rnetcarto)
 
 source("./Rscripts/MODELfunctions.R")
 #source("./Rscripts/fournodeSUBGRAPHS.R")
@@ -20,6 +21,9 @@ dyn2 <- Crmod(Adj = nm1, t = 1:500, G = G.i, method = conres, FuncRes = Fij, K =
 
 web_props(nm1)
 web_props(nm1[which(tail(dyn2, 1)[-1] > 0),which(tail(dyn2, 1)[-1] > 0)])
+
+netcarto(nm1[which(tail(dyn2, 1)[-1] > 0),which(tail(dyn2, 1)[-1] > 0)])
+
 
 K = 1
 x.i = .5
