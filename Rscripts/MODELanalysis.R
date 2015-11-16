@@ -10,7 +10,7 @@ source("./Rscripts/MODELfunctions.R")
 
 # create model network
 
-nm1 <- niche.model(S = 100, C = .2)
+nm1 <- niche.model(S = 30, C = .2)
 
 rel.rand(nm1, 11, 10)
 
@@ -21,6 +21,14 @@ dyn2 <- Crmod(Adj = nm1, t = 1:500, G = G.i, method = conres, FuncRes = Fij, K =
 
 web_props(nm1)
 web_props(nm1[which(tail(dyn2, 1)[-1] > 0),which(tail(dyn2, 1)[-1] > 0)])
+
+nc <- netcarto(nm1)
+g <- graph.adjacency(nm1)
+V(g)$color[nc[[1]]$name] <- nc[[1]]$module
+
+TrophInd(nm1)
+
+plot(g)
 
 netcarto(nm1[which(tail(dyn2, 1)[-1] > 0),which(tail(dyn2, 1)[-1] > 0)])
 

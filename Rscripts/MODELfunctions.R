@@ -94,29 +94,36 @@ eventfun <- function(times, states, parms){
 
 # Niche model functions
 niche.model<-function(S,C){
-  new.mat<-matrix(0,nrow=S,ncol=S)
-  ci<-vector()
-  niche<-runif(S,0,1)
-  r<-rbeta(S,1,((1/(2*C))-1))*niche
-  
-  for(i in 1:S){
-    ci[i]<-runif(1,r[i]/2,niche[i])
-  }
-  
-  r[which(niche==min(niche))]<-.00000001
-  
-  for(i in 1:S){
+  require(igraph)
+  connected = FALSE
+  while(!connected){  
+    new.mat<-matrix(0,nrow=S,ncol=S)
+    ci<-vector()
+    niche<-runif(S,0,1)
+    r<-rbeta(S,1,((1/(2*C))-1))*niche
     
-    for(j in 1:S){
-      if(niche[j]>(ci[i]-(.5*r[i])) && niche[j]<(ci[i]+.5*r[i])){
-        new.mat[j,i]<-1
+    for(i in 1:S){
+      ci[i]<-runif(1,r[i]/2,niche[i])
+    }
+    
+    r[which(niche==min(niche))]<-.00000001
+    
+    for(i in 1:S){
+      
+      for(j in 1:S){
+        if(niche[j]>(ci[i]-(.5*r[i])) && niche[j]<(ci[i]+.5*r[i])){
+          new.mat[j,i]<-1
+        }
       }
     }
+    
+    new.mat<-new.mat[,order(apply(new.mat,2,sum))]
+    
+    connected <- is.connected(graph.adjacency(new.mat))
   }
-  
-  new.mat<-new.mat[,order(apply(new.mat,2,sum))]
   return(new.mat)
 }
+
 
 
 # motif_counter function from "web_functions.R"
