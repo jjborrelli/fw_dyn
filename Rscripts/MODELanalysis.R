@@ -93,3 +93,35 @@ plot.igraph(graph.adjacency(nm2), vertex.size = -1/log(dyn1[i, c(which(tail(dyn1
 # analysis
 
 coef.var <- apply(dyn1[,-1][,which(dyn1[200,-1] > 0)], 2, function(x){sd(x)/mean(x)})
+
+
+
+## Parallel lists
+n.mod.webs <- web_maker("niche", 100, 60, .1)
+er.mod.webs <- web_maker("erg", 100, 60, .1)
+
+cl <- makeCluster(detectCores()-1)
+clusterExport(cl, c("Crmod", "get.r", "G.i", "Fij", "eventfun", "conres"))
+registerDoSNOW(cl)
+dynRESniche <- parLapply(cl, n.mod.webs, Crmod)
+dynRESerg <- parLapply(cl, er.mod.webs, Crmod)
+stopCluster(cl)
+
+final.webs.niche <- lapply(1:length(n.mod.webs), function(x){n.mod.webs[[x]][which(tail(dynRESniche[[x]], 1)[-1] > 0),which(tail(dynRESniche[[x]], 1)[-1] > 0)]})
+final.webs.erg <- lapply(1:length(er.mod.webs), function(x){er.mod.webs[[x]][which(tail(dynRESerg[[x]], 1)[-1] > 0),which(tail(dynRESerg[[x]], 1)[-1] > 0)]})
+
+conNiche <- sapply(lapply(final.webs.niche, graph.adjacency), is.connected)
+conERG <- sapply(lapply(final.webs.erg, graph.adjacency), is.connected)
+
+niche.modular <- lapply(final.webs.niche, netcarto)
+niche.modularIN <- lapply(n.mod.webs, netcarto)
+erg.modular <- lapply(final.webs.erg, netcarto)
+erg.modularIN <- lapply(er.mod.webs, netcarto)
+
+df1 <- data.frame(mod = sapply(erg.modular, "[[", 2), typ = rep("erg", 100), time = rep("final", 100))
+df2 <- data.frame(mod = sapply(erg.modularIN, "[[", 2), typ = rep("erg", 100), time = rep("initial", 100))
+df3 <- data.frame(mod = sapply(niche.modular, "[[", 2), typ = rep("niche", 100), time = rep("final", 100))
+df4 <- data.frame(mod = sapply(niche.modularIN, "[[", 2), typ = rep("niche", 100), time = rep("initial", 100))
+
+mods <- rbind(df1, df2, df3, df4)
+ggplot(mods, aes(x = typ, y = mod, fill = time)) + geom_boxplot()

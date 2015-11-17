@@ -7,6 +7,8 @@ library(reshape2)
 library(ggplot2)
 library(data.table)
 library(rnetcarto)
+library(parallel)
+library(doSNOW)
 
 # C-R-model Functions
 
@@ -124,6 +126,34 @@ niche.model<-function(S,C){
   return(new.mat)
 }
 
+erdos_renyi <- function(S, C){
+  basal = FALSE
+  while(!basal){
+    ag <- erdos.renyi.game(n = S, p.or.m = C, type = "gnp", directed = T)
+    amat <- get.adjacency(ag, sparse = F)
+    
+    basal <- sum(colSums(amat) == 0) > 1
+  }
+  return(amat)
+}
+
+web_maker <- function(typ, n, S, C){
+  if(typ == "niche"){
+    niche.list <- list()
+    for (i in 1:n){
+      niche.list[[i]]<- niche.model(S, C)
+    }
+    return(niche.list)
+  }else if(typ == "erg"){
+    erg.list <- list()
+    for (i in 1:n){
+      erg.list[[i]]<- erdos_renyi(S, C)
+    }
+    return(erg.list)
+  }else{
+    stop("This function only works for niche model ('niche') and erdos-renyi random networks ('erg')")
+  }
+}
 
 
 # motif_counter function from "web_functions.R"
