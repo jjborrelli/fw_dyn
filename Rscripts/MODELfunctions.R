@@ -198,11 +198,10 @@ web_props <- function(mat){
   bas <- sum(degree(g, mode = "in") == 0)
   top <- sum(degree(g, mode = "out") == 0)
   
-  mod <- simulatedAnnealing(mat, fixed = 1000)
-  
   #mot <- motif_counter(list(graph.adjacency(mat)))
   
-  df <- data.frame(N, C, Ltot, LD, clust, mod = mod$modularity, apl, diam, bas, top)
+  df <- matrix(c(N, C, Ltot, LD, clust, apl, diam, bas, top), nrow = 1)
+  colnames(df) <- c("N", "C", "Ltot", "LD", "clust", "apl", "diam", "bas", "top")
   return(df)
 }
 

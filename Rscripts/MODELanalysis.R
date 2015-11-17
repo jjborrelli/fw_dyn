@@ -125,3 +125,19 @@ df4 <- data.frame(mod = sapply(niche.modularIN, "[[", 2), typ = rep("niche", 100
 
 mods <- rbind(df1, df2, df3, df4)
 ggplot(mods, aes(x = typ, y = mod, fill = time)) + geom_boxplot()
+
+n.props.fin <- t(sapply(final.webs.niche, web_props))
+n.props.in <- t(sapply(n.mod.webs, web_props))
+
+e.props.fin <- t(sapply(final.webs.erg, web_props))
+e.props.in <- t(sapply(er.mod.webs, web_props))
+
+wp1 <- cbind(e.props.fin, df1)
+wp2 <- cbind(e.props.in, df2)
+wp3 <- cbind(n.props.fin, df3)
+wp4 <- cbind(n.props.in, df4)
+
+wprops <- rbind(wp1, wp2, wp3, wp4)
+colnames(wprops) <- c("N", "C", "Ltot", "LD", "clust", "apl", "diam", "bas", "top", "mod", "typ", "time")
+wp.df <- melt(wprops)
+ggplot(wp.df, aes(x = variable, y = value, fill = time)) + geom_boxplot() + facet_grid(~typ)
