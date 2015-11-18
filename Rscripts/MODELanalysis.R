@@ -139,5 +139,6 @@ wp4 <- cbind(n.props.in, df4)
 
 wprops <- rbind(wp1, wp2, wp3, wp4)
 colnames(wprops) <- c("N", "C", "Ltot", "LD", "clust", "apl", "diam", "bas", "top", "mod", "typ", "time")
-wp.df <- melt(wprops)
+# need to append final to initial
+wp.df <- melt(wprops, id.var)
 ggplot(wp.df, aes(x = variable, y = value, fill = time)) + geom_boxplot() + facet_grid(~typ)
