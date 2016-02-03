@@ -303,6 +303,20 @@ rel.rand.z <- function(mat, dyn, iter = 10000){
   return(zscore)
 }
 
+
+# motif loss through time
+
+motif_loss <- function(dmat){
+  mc <- list()
+  for(i in 1:nrow(dmat)){
+    dfin <- dmat[i, -1]
+    nfin <- init[dfin > 0, dfin > 0]
+    
+    mc[[i]] <- motif_counter(list(graph.adjacency(nfin)))
+  }
+  return(rbindlist(mc))
+}
+
 # multiple iterations
 
 CRmod.gen <- function(S, con, network, xpar, ...){
@@ -332,6 +346,8 @@ CRmod.gen <- function(S, con, network, xpar, ...){
   
   return(list(wp = wp, z = z1))
 }
+
+
 
 
 # visualize 
@@ -370,10 +386,12 @@ netHTML <- function(mat, dyn, path1 = getwd()){
 
 
 # QSS functions
+
+## changed conversion to work for netcarto
 conversion <- function(tm){
   for(i in 1:nrow(tm)){
     for(j in 1:ncol(tm)){
-      if(tm[i,j] == 1 & tm[j,i] == 0){tm[j,i] <- -1}
+      if(tm[i,j] == 1 & tm[j,i] == 0){tm[j,i] <- 1}
     }
   }
   return(tm)

@@ -4,6 +4,7 @@ library(data.table)
 library(animation)
 library(rnetcarto)
 library(igraph)
+library(NetIndices)
 
 source("./Rscripts/MODELfunctions.R")
 #source("./Rscripts/fournodeSUBGRAPHS.R")
@@ -141,10 +142,10 @@ dynRESniche4.bd <- parLapply(cl, n.mod.webs, Crmod, t = 1:500, xpar = 10, FuncRe
 
 
 # random model webs with type II dynamics
-dynRESerg1.bd <- parLapply(cl, er.mod.webs, Crmod, t = 1:500, xpar = 0, FuncRes = Fbd)
-dynRESerg2.bd <- parLapply(cl, er.mod.webs, Crmod, t = 1:500, xpar = .2, FuncRes = Fbd)
-dynRESerg3.bd <- parLapply(cl, er.mod.webs, Crmod, t = 1:500, xpar = 1, FuncRes = Fbd)
-dynRESerg4.bd <- parLapply(cl, er.mod.webs, Crmod, t = 1:500, xpar = 10, FuncRes = Fbd)
+dynRESerg1 <- parLapply(cl, er.mod.webs, Crmod, t = 1:500, xpar = 0, FuncRes = Fij)
+dynRESerg2 <- parLapply(cl, er.mod.webs, Crmod, t = 1:500, xpar = .2, FuncRes = Fij)
+dynRESerg3 <- parLapply(cl, er.mod.webs, Crmod, t = 1:500, xpar = 1, FuncRes = Fij)
+dynRESerg4 <- parLapply(cl, er.mod.webs, Crmod, t = 1:500, xpar = 10, FuncRes = Fij)
 
 # random model webs with interference dynamics
 dynRESerg1.bd <- parLapply(cl, er.mod.webs, Crmod, t = 1:500, xpar = 0, FuncRes = Fbd)
@@ -153,6 +154,157 @@ dynRESerg3.bd <- parLapply(cl, er.mod.webs, Crmod, t = 1:500, xpar = 1, FuncRes 
 dynRESerg4.bd <- parLapply(cl, er.mod.webs, Crmod, t = 1:500, xpar = 10, FuncRes = Fbd)
 
 stopCluster(cl)
+
+###################################
+###################################
+test <- dynRESniche2[[1]]
+mc <- list()
+for(i in 1:nrow(test)){
+  dfin <- test[i, -1]
+  nfin <- init[dfin > 0, dfin > 0]
+  
+  mc[[i]] <- motif_counter(list(graph.adjacency(nfin)))
+}
+
+test <- lapply(dynRESniche2, motif_loss)
+test3 <- t(sapply(test, function(x){unlist(apply(x, 2, function(x) unlist(which.min(x))))}))
+boxplot(test3)
+
+rand_motif_loss <- function(d, runs){
+  ml <- list()
+  for(i in 1:runs){
+    tmp <- d[,c(1,sample(2:61))]
+    ml[[i]] <- motif_loss(tmp)
+    #print(i)
+  }
+  tmp1 <- t(sapply(ml, function(x){unlist(apply(x, 2, function(x) unlist(which.min(x))))}))
+  return(test3[1,] - colMeans(tmp1))
+}
+
+rml <- lapply(dynRESniche2, rand_motif_loss, runs = 200)
+
+temp <- lapply(dynRESerg2, motif_loss)
+temp3 <- t(sapply(temp, function(x){unlist(apply(x, 2, function(x) unlist(which.min(x))))}))
+boxplot(temp3)
+
+mc1 <- log(rbindlist(mc))
+mc1[mc1 == -Inf] <- 0
+matplot(mc1, typ = "l")
+
+dynprops <- function(dyn, init){
+  dfin <- dyn[500, -1]
+  nfin <- init[dfin > 0, dfin > 0]
+  
+  mc <- motif_counter(list(graph.adjacency(nfin)))
+  
+  if(sum(dfin > 0) < 10){
+    return(data.frame(N = NA, L = NA, tl = NA, mod = NA, mc))
+  }
+  
+  if(!is.connected(graph.adjacency(nfin))){
+    return(data.frame(N = NA, L = NA, tl = NA, mod = NA, mc))
+  }
+  
+  N <- sum(dfin > 0)
+  L <- sum(nfin)
+  
+  ti <- average.path.length(graph.adjacency(nfin))
+  
+  nc <- netcarto(conversion(nfin))
+  
+  return(data.frame(N = N, L = L, tl = ti, mod = nc[[2]], mc))
+} 
+
+initp <- lapply(n.mod.webs, function(x){
+  N <- nrow(x)
+  L <- sum(x)
+  ti <- average.path.length(graph.adjacency(x))
+  nc <- netcarto(conversion(x))
+  return(data.frame(N = N, L = L, tl = ti, mod = nc[[2]]))
+})
+
+r.initp <- lapply(er.mod.webs, function(x){
+  N <- nrow(x)
+  L <- sum(x)
+  ti <- average.path.length(graph.adjacency(x))
+  nc <- netcarto(conversion(x))
+  return(data.frame(N = N, L = L, tl = ti, mod = nc[[2]]))
+})
+
+
+
+initp.r <- cbind(rbindlist(initp), typ = "init", model = "niche")
+r.initp.r <- cbind(rbindlist(r.initp), typ = "init", model = "er")
+
+drn1p <- lapply(1:1000,function(x) dynprops(dynRESniche1[[x]], n.mod.webs[[x]]))
+drn1p.r <- cbind(rbindlist(drn1p), typ = "drn1", model = "niche", fr = "LV", par = 0)
+
+
+drn2p <- lapply(1:1000,function(x) dynprops(dynRESniche2[[x]], n.mod.webs[[x]]))
+drn2p.r <- cbind(rbindlist(drn2p), typ = "drn2", model = "niche", fr = "LV", par = .2)
+
+drn3p <- lapply(1:1000,function(x) dynprops(dynRESniche3[[x]], n.mod.webs[[x]]))
+drn3p.r <- cbind(rbindlist(drn3p), typ = "drn3", model = "niche", fr = "LV", par = 1)
+
+drn4p <- lapply(1:1000,function(x) dynprops(dynRESniche4[[x]], n.mod.webs[[x]]))
+drn4p.r <- cbind(rbindlist(drn4p), typ = "drn4", model = "niche", fr = "LV", par = 10)
+
+
+drnbd1p <- lapply(1:1000,function(x) dynprops(dynRESniche1.bd[[x]], n.mod.webs[[x]]))
+drnbd1p.r <- cbind(rbindlist(drnbd1p), typ = "drnbd1", model = "niche", fr = "Interference", par = 0)
+
+drnbd2p <- lapply(1:1000,function(x) dynprops(dynRESniche2.bd[[x]], n.mod.webs[[x]]))
+drnbd2p.r <- cbind(rbindlist(drnbd2p), typ = "drnbd2", model = "niche", fr = "Interference", par = 0)
+
+drnbd3p <- lapply(1:1000,function(x) dynprops(dynRESniche3.bd[[x]], n.mod.webs[[x]]))
+drnbd3p.r <- cbind(rbindlist(drnbd3p), typ = "drnbd3", model = "niche", fr = "Interference", par = 0)
+
+drnbd4p <- lapply(1:1000,function(x) dynprops(dynRESniche4.bd[[x]], n.mod.webs[[x]]))
+drnbd4p.r <- cbind(rbindlist(drnbd4p), typ = "drnbd4", model = "niche", fr = "Interference", par = 0)
+
+#######################
+
+dre1p <- lapply(1:1000,function(x) dynprops(dynRESerg1[[x]], n.mod.webs[[x]]))
+dre1p.r <- cbind(rbindlist(dre1p), typ = "dre1", model = "erg", fr = "LV", par = 0)
+
+dre2p <- lapply(1:1000,function(x) dynprops(dynRESerg2[[x]], n.mod.webs[[x]]))
+dre2p.r <- cbind(rbindlist(dre2p), typ = "dre2", model = "erg", fr = "LV", par = .2)
+
+dre3p <- lapply(1:1000,function(x) dynprops(dynRESerg3[[x]], n.mod.webs[[x]]))
+dre3p.r <- cbind(rbindlist(dre3p), typ = "dre3", model = "erg", fr = "LV", par = 1)
+
+dre4p <- lapply(1:1000,function(x) dynprops(dynRESerg4[[x]], n.mod.webs[[x]]))
+dre4p.r <- cbind(rbindlist(dre4p), typ = "dre4", model = "erg", fr = "LV", par = 10)
+
+
+drebd1p <- lapply(1:1000,function(x) dynprops(dynRESerg1.bd[[x]], n.mod.webs[[x]]))
+drebd1p.r <- cbind(rbindlist(drebd1p), typ = "drebd1", model = "erg", fr = "Interference", par = 0)
+
+drebd2p <- lapply(1:1000,function(x) dynprops(dynRESerg2.bd[[x]], n.mod.webs[[x]]))
+drebd2p.r <- cbind(rbindlist(drebd2p), typ = "drebd2", model = "erg", fr = "Interference", par = .2)
+
+drebd3p <- lapply(1:1000,function(x) dynprops(dynRESerg3.bd[[x]], n.mod.webs[[x]]))
+drebd3p.r <- cbind(rbindlist(drebd3p), typ = "drebd3", model = "erg", fr = "Interference", par = 1)
+
+drebd4p <- lapply(1:1000,function(x) dynprops(dynRESerg4.bd[[x]], n.mod.webs[[x]]))
+drebd4p.r <- cbind(rbindlist(drebd4p), typ = "drebd4", model = "erg", fr = "Interference", par = 10)
+
+
+allDAT <- rbind(drn1p.r, drn2p.r, drn3p.r, drn4p.r,
+                drnbd1p.r, drnbd2p.r, drnbd3p.r, drnbd4p.r,
+                dre1p.r, dre2p.r, dre3p.r, dre4p.r,
+                drebd1p.r, drebd2p.r, drebd3p.r, drebd4p.r)
+
+allDAT <- allDAT[which(!is.na(allDAT$N)),]
+
+
+ggplot(allDAT) + facet_grid(fr~.) + geom_boxplot(aes(x = factor(par), y = N, fill = model))
+###################################
+###################################
+
+
+
+
 
 final.webs.niche <- lapply(1:length(n.mod.webs), function(x){n.mod.webs[[x]][which(tail(dynRESniche[[x]], 1)[-1] > 0),which(tail(dynRESniche[[x]], 1)[-1] > 0)]})
 final.webs.erg <- lapply(1:length(er.mod.webs), function(x){er.mod.webs[[x]][which(tail(dynRESerg[[x]], 1)[-1] > 0),which(tail(dynRESerg[[x]], 1)[-1] > 0)]})
