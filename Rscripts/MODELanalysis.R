@@ -121,7 +121,7 @@ coef.var <- apply(dyn1[,-1][,which(dyn1[200,-1] > 0)], 2, function(x){sd(x)/mean
 #############################################################################
 #############################################################################
 ## Parallel lists
-n.mod.webs <- web_maker("niche", 1000, 60, .1)
+n.mod.webs <- web_maker("niche", 100, 60, .1)
 er.mod.webs <- web_maker("erg", 1000, 60, .1)
 
 cl <- makeCluster(detectCores()-1)
@@ -166,22 +166,37 @@ for(i in 1:nrow(test)){
   mc[[i]] <- motif_counter(list(graph.adjacency(nfin)))
 }
 
-test <- lapply(dynRESniche2, motif_loss)
+
+
+motif_loss <- function(dmat, init){
+  nfin <- lapply(1:nrow(dmat), function(x){init[dmat[x, -1] > 0, dmat[x, -1] > 0]})
+  mlc <- motif_counter(lapply(nfin, graph.adjacency))
+  return(mlc)
+}
+library(compiler)
+motif_loss.cmp <- cmpfun(motif_loss)
+
+rand_motif_loss <- function(d, comp, init, runs){
+  
+  tmp <- lapply(1:runs, function(x) d[,c(1,sample(2:61))])
+  ml <- lapply(tmp, function(x) motif_loss.cmp(x, init))
+  
+  tmp1 <- t(sapply(ml, function(x){unlist(apply(x, 2, function(x) unlist(which.min(x))))}))
+  return((comp - colMeans(tmp1))/apply(tmp1, 2, sd))
+}
+
+test <- lapply(1:100, function(x) motif_loss.cmp(dynRESniche2a[[x]], n.mod.webs[[x]]))
 test3 <- t(sapply(test, function(x){unlist(apply(x, 2, function(x) unlist(which.min(x))))}))
 boxplot(test3)
 
-rand_motif_loss <- function(d, runs){
-  ml <- list()
-  for(i in 1:runs){
-    tmp <- d[,c(1,sample(2:61))]
-    ml[[i]] <- motif_loss(tmp)
-    #print(i)
-  }
-  tmp1 <- t(sapply(ml, function(x){unlist(apply(x, 2, function(x) unlist(which.min(x))))}))
-  return(test3[1,] - colMeans(tmp1))
-}
+cl <- makeCluster(detectCores()-1)
+clusterExport(cl, c("dynRESniche2a", "test3", "n.mod.webs", "rand_motif_loss", "motif_loss.cmp", "motif_loss", "motif_counter", "rbindlist"))
+registerDoSNOW(cl)
+p.rml <- parLapply(cl, 1:100, function(x){rand_motif_loss(dynRESniche2a[[x]], comp = test3[x,], init = n.mod.webs[[x]], runs = 200)})
+stopCluster(cl)
 
-rml <- lapply(dynRESniche2, rand_motif_loss, runs = 200)
+
+
 
 temp <- lapply(dynRESerg2, motif_loss)
 temp3 <- t(sapply(temp, function(x){unlist(apply(x, 2, function(x) unlist(which.min(x))))}))
@@ -377,3 +392,151 @@ colnames(wprops) <- c("N", "C", "Ltot", "LD", "clust", "apl", "diam", "bas", "to
 # need to append final to initial
 wp.df <- melt(wprops, id.var)
 ggplot(wp.df, aes(x = variable, y = value, fill = time)) + geom_boxplot() + facet_grid(~typ)
+
+
+
+
+##############################################
+##############################################
+CRcurve <- function(iter){
+  nm <- niche.model(100, .1)
+  N <- c()
+  mc <- matrix(nrow = iter, ncol = 13)
+  for(i in 1:iter){
+    dyn <- Crmod(nm)
+    N[i] <- sum(dyn[200, -1] > 0)
+    mc[i,]<- unlist(motif_counter(list(graph.adjacency(nm))))
+    nm <- curve_ball(nm)
+    print(i)
+  }
+  return(list(N, mc))
+}
+
+cl <- makeCluster(detectCores()-1)
+clusterExport(cl, c("Crmod", "get.r", "G.i", "Fij", "eventfun", "conres", "CRcurve", "niche.model", "motif_counter", "curve_ball"))
+registerDoSNOW(cl)
+
+crc <- parLapply(cl, 1:500, function(x){CRcurve(1000)})
+
+stopCluster(cl)
+
+
+assemble <- function(S, C, iter, new.ints = 5){
+  n1 <- niche.model(S, C)
+  d1 <- Crmod(n1, t = 1:500)
+
+  n2 <- n1[d1[500, -1] > 0, d1[500, -1] > 0]
+  n.int <- nrow(n2)*2+1
+  
+  mc.init <- motif_counter(list(graph.adjacency(n2)))
+  
+  mc.diff <- matrix(nrow = iter, ncol = 13)
+  dyn <- matrix(nrow = iter, ncol = nrow(n2)+1)
+  init.b <- matrix(nrow = iter, ncol = nrow(n2)+1)
+  new.d <- matrix(nrow = 500, ncol = iter)
+  tl <- matrix(nrow = iter, ncol = 4)
+  ints <- c(rep(1, new.ints), rep(0, n.int - new.ints))
+  s.ints <- replicate(iter, sample(ints))
+  for(i in 1:iter){
+    n3 <- rbind(cbind(n2, s.ints[1:nrow(n2),i]), s.ints[(nrow(n2)+1):length(ints),i])
+    mc.diff[i,] <- unlist(motif_counter(list(graph.adjacency(n3))) - mc.init)
+    cm1 <- Crmod(n3, t = 1:500)
+    init.b[i,] <- cm1[1, -1] 
+    dyn[i,] <- cm1[500,-1] 
+    new.d[,i] <- cm1[,nrow(n3)]
+    t1 <- TrophInd(n3)
+    t2 <- TrophInd(n3[dyn[i,] > 0, dyn[i,] > 0])$TL
+    if(cm1[500,nrow(n3)] != 0){t3 <- tail(t2, 1)}else{t3 = 0}
+    tl[i,] <- c(mean(t1$TL), t1[nrow(n3),1], mean(t2), t3)
+    print(i)
+  }
+  return(list(mc.diff = mc.diff, dyn = dyn, init.b = init.b, new.d = new.d, tl = tl))
+}
+extinct <- apply(dyn, 1, function(x) sum(x == 0))  
+cor.test(apply(new.d, 2, sd)/colMeans(new.d),rowSums(mc.diff[,c(1,2,4,5)])) 
+
+
+
+
+
+
+###############################
+###############################
+
+test <- Fij(dynRESniche2[[1]][1,-1], n.mod.webs[[1]], .5, .2)
+test[60, 22]
+test2 <- melt(test)
+test3 <- test2[test2$value != 0,]
+un.t <- unique(apply(test2[test2$value != 0,1:2], 1, sort))
+qtest <- quantile(test3$value)
+el <- list()
+for(i in 1:4){
+  el[[i]] <- test3[test3$value >= qtest[i], 1:2]
+}
+
+qweb <- function(dyn, web, time, xpar = .2){
+  test <- Fij(dyn[time,-1], web, .5, xpar)
+  test2 <- melt(test)
+  test3 <- test2[test2$value != 0,]
+  
+  qtest <- quantile(test3$value)
+  el <- list()
+  for(i in 1:4){
+    el[[i]] <- test3[test3$value >= qtest[i], 1:2]
+  }
+  return(motif_counter(lapply(el, function(x) graph.edgelist(as.matrix(x)))))
+}
+
+
+qtest <- lapply(1:1000, function(x){qweb(dynRESniche2[[x]], n.mod.webs[[x]], time = 500, xpar = .2)})
+res <- list()
+for(i in 1:4){
+  res[[i]] <- cbind(melt(do.call(rbind, lapply(qtest, function(x) x[i,]))), i, t="final")
+}
+
+qtest2 <- lapply(1:1000, function(x){qweb(dynRESniche2[[x]], n.mod.webs[[x]], time = 1, xpar = .2)})
+res2 <- list()
+for(i in 1:4){
+  res2[[i]] <- cbind(melt(do.call(rbind, lapply(qtest2, function(x) x[i,]))), i, t="init")
+}
+
+ggplot(rbindlist(list(rbindlist(res), rbindlist(res2))), aes(x = variable, y = value, fill = t)) + geom_boxplot() + 
+  facet_wrap(~i, scales = "free_y")
+
+intstrength <- function(dyn, web, xpar){
+  dbls <- c()
+  sing <- c()
+  for(i in 1:500){
+    test <- Fij(dyn[i,-1], web, .5, xpar)
+    ints1 <- cbind(test[upper.tri(test)], t(test)[upper.tri(test)])
+    dbls[i] <- mean(ints1[which(ints1[,1] > 0 & ints1[,2] > 0),])
+    sing[i] <- mean(ints1[!(ints1[,1] > 0 & ints1[,2] > 0),][rowSums(ints1) > 0][ints1[!(ints1[,1] > 0 & ints1[,2] > 0),][rowSums(ints1) > 0] > 0])
+  }
+  
+  return(sing-dbls)
+}
+
+is1 <- lapply(1:1000, function(x){intstrength(dynRESniche2[[x]], n.mod.webs[[x]], xpar = .2)})
+
+
+pathdyn <- function(dyn, web){
+  apl <- c()
+  for(i in 1:500){
+    nw <- web[dyn[i, -1] > 0, dyn[i, -1] > 0]
+    apl[i] <- diameter(graph.adjacency(nw)) # average.path.length(graph.adjacency(nw))
+  }
+  apl2 <- c()
+  for(i in 1:200){
+    s <- sample(dyn[i, -1] > 0)
+    nw <- web[s, s]
+    apl2[i] <- diameter(graph.adjacency(nw))
+  }
+  
+  return(list(apl, apl2))
+}
+
+pld <- lapply(1:1000, function(x){pathdyn(dynRESniche2[[x]], n.mod.webs[[x]])})
+plot(rowMeans(t(do.call(rbind, pld))))
+
+pdyn <- lapply(pld, "[[", 1)
+pnull <- lapply(pld, "[[", 2)

@@ -141,7 +141,11 @@ web_maker <- function(typ, n, S, C){
   if(typ == "niche"){
     niche.list <- list()
     for (i in 1:n){
-      niche.list[[i]]<- niche.model(S, C)
+      n <- niche.model(S, C)
+      while(sum(colSums(n) == 0) != 6){
+        n <- niche.model(S, C)
+      }
+      niche.list[[i]] <- n
     }
     return(niche.list)
   }else if(typ == "erg"){
@@ -306,7 +310,7 @@ rel.rand.z <- function(mat, dyn, iter = 10000){
 
 # motif loss through time
 
-motif_loss <- function(dmat){
+motif_loss <- function(dmat, init){
   mc <- list()
   for(i in 1:nrow(dmat)){
     dfin <- dmat[i, -1]
