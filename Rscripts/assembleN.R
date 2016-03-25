@@ -94,7 +94,7 @@ for(i in 2:101){
   extantSPP[[i]] <- as.numeric(colnames(newN)[ext1])
   eqABUND[[i]] <- tail(dyn, 1)[,-1]
   
-  cat(i-1, "------->", length(extantSPP[[i]]), "species", \n)
+  cat(i-1, "------->", length(extantSPP[[i]]), "species", "\n")
 }
 
 nSPP <- sapply(extantSPP, length)
@@ -118,3 +118,91 @@ zmc <- t(sapply(1:nrow(mc), function(x){(unlist(mc[x,]) - unlist(nullmeans[[x]])
 zmc[is.nan(zmc)] <- 0
 boxplot(zmc)
 ggplot(melt(zmc), aes(x = Var1, y = value)) + geom_point() + stat_smooth(method = "lm") + facet_wrap(~Var2)
+
+
+####################################################################
+####################################################################
+####################################################################
+
+initialNiche <- function(niche, nbasal){
+  sppNAMES <- as.character(1:nrow(niche))
+  colnames(n1) <- sppNAMES
+  rownames(n1) <- sppNAMES
+  cond <- FALSE
+  #get a connected initial network
+  while(!cond){
+    #initial basal spp
+    inBAS <- sample(which(colSums(n1) == 0), nbasal)
+    #initial consumer spp
+    inCON <- sample((1:1000)[-which(colSums(n1) == 0)], 40)
+    #all spp
+    inSPP <- c(inBAS, inCON)
+    #intial matrix
+    inN <- n1[inSPP, inSPP]
+    cond <- is.connected(graph.adjacency(inN))
+  }
+  
+  sppINTRO <- sample((1:1000)[-inSPP], 100)
+  
+  return(list(inN = inN, sppINTRO = sppINTRO))
+}
+
+assembly <- function(niche, initial, intro, n.inv){
+  dyn1 <- CRsimulator(inN)
+  extant <- which(tail(dyn1, 1)[,-1] > 0) 
+  extantSPP <- list(as.numeric(colnames(inN)[extant]))
+  eqABUND <- list(tail(dyn1, 1)[,-1])
+  
+  for(i in 2:n.inv){
+    invaded <- c(extantSPP[[i-1]], sppINTRO[i-1])
+    newN <- n1[invaded, invaded]
+    
+    dyn <- CRsimulator(newN)
+    ext1 <- which(tail(dyn, 1)[,-1] > 0)
+    extantSPP[[i]] <- as.numeric(colnames(newN)[ext1])
+    eqABUND[[i]] <- tail(dyn, 1)[,-1]
+  }
+  
+  return(list(community = extantSPP, abundances = eqABUND))
+}
+
+motifChanges <- function(community, niche){
+  allnets <- lapply(community, function(x){niche[x,x]})
+  allg <- lapply(allnets, graph.adjacency)
+  mc <- motif_counter(allg)
+  nulls <- lapply(1:length(allg), function(x){
+    nn <-nullN(n1, nSPP[x], whichbas[[x]])
+    m1 <- motif_counter(lapply(nn, graph.adjacency))
+    return(list(colMeans(m1), apply(m1, 2, sd)))
+  })
+  
+  nullmeans <- lapply(nulls, "[[", 1)
+  nullsds <- lapply(nulls, "[[", 2)
+  
+  zmc <- t(sapply(1:nrow(mc), function(x){(unlist(mc[x,]) - unlist(nullmeans[[x]]))/unlist(nullsds[[x]])}))
+  zmc[is.nan(zmc)] <- 0
+  
+  return(zmc)
+}
+
+# generates regional species pool food web
+system.time(
+  regional <- niche.model(1000, .15)
+) # 3.69 user
+
+# generates local equilibrium web from subset of regional
+system.time(
+  local <- initialNiche(regional, nbasal = 5)
+) # 0.04 user
+
+# simulate a series of 100 invasions of random spp from regional pool
+system.time(
+  comm.assem <- assembly(regional, local$inN, local$sppINTRO, n.inv = 100) 
+) # 1567.3 user (26 min)
+
+# get motif changes
+system.time(
+  moch <- motifChanges(comm.assem$community, regional)
+) # 46.5 user
+
+ggplot(melt(moch), aes(x = Var1, y = value)) + geom_point() + stat_smooth(method = "lm") + facet_wrap(~Var2)
