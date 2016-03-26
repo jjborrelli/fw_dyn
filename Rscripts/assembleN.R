@@ -148,14 +148,14 @@ initialNiche <- function(niche, nbasal){
 }
 
 assembly <- function(niche, initial, intro, n.inv){
-  dyn1 <- CRsimulator(inN)
+  dyn1 <- CRsimulator(initial)
   extant <- which(tail(dyn1, 1)[,-1] > 0) 
-  extantSPP <- list(as.numeric(colnames(inN)[extant]))
+  extantSPP <- list(as.numeric(colnames(initial)[extant]))
   eqABUND <- list(tail(dyn1, 1)[,-1])
   
   for(i in 2:n.inv){
-    invaded <- c(extantSPP[[i-1]], sppINTRO[i-1])
-    newN <- n1[invaded, invaded]
+    invaded <- c(extantSPP[[i-1]], intro[i-1])
+    newN <- niche[invaded, invaded]
     
     dyn <- CRsimulator(newN)
     ext1 <- which(tail(dyn, 1)[,-1] > 0)
@@ -206,3 +206,29 @@ system.time(
 ) # 46.5 user
 
 ggplot(melt(moch), aes(x = Var1, y = value)) + geom_point() + stat_smooth(method = "lm") + facet_wrap(~Var2)
+
+
+############################################################
+############################################################
+############################################################
+
+regional <- niche.model(1000, .15)
+colnames(regional) <- as.character(1:nrow(regional))
+rownames(regional) <- as.character(1:nrow(regional))
+
+locals <- lapply(1:100, function(x){initialNiche(regional, nbasal = 5)})
+
+initialnets <- lapply(locals, "[[", 1)
+sppintro <- lapply(locals, "[[", 2)
+
+library(parallel)
+library(doSNOW)
+
+cl <- makeCluster(detectCores() - 1)
+clusterExport(cl, c("assembly", "initialnets", "sppintro", "regional"))
+registerDoSNOW(cl)
+
+clusterCall(cl, function() library(rend))
+combuild <- parLapply(cl, 1:100, function(x){assembly(regional, initialnets[[x]], sppintro[[x]], n.inv = 100)})
+
+stopCluster(cl)
