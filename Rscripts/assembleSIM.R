@@ -5,7 +5,7 @@ library(rend)
 library(ggplot2)
 library(parallel)
 library(doSNOW)
-filepath.sink <- "D:/jjborrelli/AssemblyDATA/"
+filepath.sink <- "D:/jjborrelli/AssemblyDATA/Sim2/"
 
 regional <- niche.model(1000, .15)
 colnames(regional) <- as.character(1:nrow(regional))
@@ -52,7 +52,13 @@ test <- invaders[[1]]
 
 low <- function(y){mean(y) - 1.96 * (sd(y)/sqrt(length(y)))}
 upp <- function(y){mean(y) + 1.96 * (sd(y)/sqrt(length(y)))}
-ggplot(melt(test[,-c(1,3)]), aes(x = variable, y = value, fill = invEST)) + geom_bar(stat = "summary", position = "dodge") + stat_summary(fun.y = "mean", fun.ymin = "low", fun.ymax = "upp", geom = "errorbar", position = "dodge") 
+ggplot(melt(do.call(rbind, invaders)[-c(1,3)], id.vars = "invEST"), aes(x = variable, y = value, fill = invEST)) + geom_bar(stat = "summary", position = "dodge") + stat_summary(fun.y = "mean", fun.ymin = "low", fun.ymax = "upp", geom = "errorbar", position = "dodge") 
+ggplot(melt(do.call(rbind, invaders)[-c(1,3)], id.vars = "invEST"), aes(x = invEST, y = value, fill = invEST)) + geom_bar(stat = "summary", position = "dodge") + stat_summary(fun.y = "mean", fun.ymin = "low", fun.ymax = "upp", geom = "errorbar", position = "dodge") + facet_wrap(~variable, scales = "free_y") 
+
+test2 <- invwebp[[1]]
+test3 <- cbind(test2, SCENARIO = paste(rep(test$invEST, each = 26),rep(test$spGain < 0, each = 26))) 
+ggplot(test3, aes(x = SCENARIO, y = value, fill = SCENARIO)) + geom_bar(stat = "summary", position = "dodge") + stat_summary(fun.y = "mean", fun.ymin = "low", fun.ymax = "upp", geom = "errorbar", position = "dodge") + facet_wrap(~variable, scales = "free_y") 
+
 
 InE <- lapply(wps, function(x){which(x$inv & x$delS > 0)})
 IE <- lapply(wps, function(x){which(x$inv & x$delS < 0)})
