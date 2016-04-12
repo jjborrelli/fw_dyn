@@ -6,23 +6,25 @@ library(ggplot2)
 library(parallel)
 library(doSNOW)
 filepath.sink <- "D:/jjborrelli/AssemblyDATA/Sim2/"
+# sim1 Nregion = 1000, Cregion = .15
+# sim1 Nregion = 1000, Cregion = .3; regional2
 
-regional <- niche.model(1000, .15)
-colnames(regional) <- as.character(1:nrow(regional))
-rownames(regional) <- as.character(1:nrow(regional))
+regional2 <- niche.model(1000, .3)
+colnames(regional2) <- as.character(1:nrow(regional2))
+rownames(regional2) <- as.character(1:nrow(regional2))
 
-locals <- lapply(1:100, function(x){initialNiche(regional, nbasal = 5)})
+locals <- lapply(1:100, function(x){initialNiche(regional2, nbasal = 5)})
 
 
 strt <- Sys.time()
 cl <- makeCluster(detectCores() - 1)
 registerDoSNOW(cl)
 
-RESULT <- foreach(i = 1:100) %dopar% {
+RESULT2 <- foreach(i = 1:100) %dopar% {
   source("./fw_dyn/Rscripts/assembleN.R")
   inv.events <- 200
   sink(file = paste(filepath.sink, "simdata", i,".txt", collapse = ""))
-  combuild <- assembly(regional, locals[[i]], n.inv = inv.events)
+  combuild <- assembly(regional2, locals[[i]], n.inv = inv.events)
   
   pa <- matrix(nrow = length(combuild[[1]]), ncol = length(unique(unlist(combuild[[1]]))))
   colnames(pa) <- as.character(unique(unlist(combuild[[1]])))
@@ -39,6 +41,9 @@ RESULT <- foreach(i = 1:100) %dopar% {
 stopCluster(cl)
 ends <- Sys.time()
 ends - strt
+run2time <- ends - strt
+
+#run1time <- ends - strt
 
 #tryout <- RESULT # run of simulation for 7 webs
 comms <- lapply(RESULT, "[[", 1)

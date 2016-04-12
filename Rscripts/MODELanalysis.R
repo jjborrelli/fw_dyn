@@ -5,120 +5,157 @@ library(animation)
 library(rnetcarto)
 library(igraph)
 library(NetIndices)
+library(rend)
 
-source("./Rscripts/MODELfunctions.R")
-#source("./Rscripts/fournodeSUBGRAPHS.R")
+# source("./Rscripts/MODELfunctions.R")
 
-llfn <- lapply(fournode.am, function(x){Crmod(Adj = x, t = 1:500, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = 10, B.o =.5)})
-s1 <- sapply(llfn, function(x){sum(x[500,-1] > 0)})
-
-llvm <- lapply(fournode.am, vert.mot)
-temp <- lapply(llfn, function(x){which(!x[500, -1] > 0)})
-
-test1 <- do.call("rbind",lapply(1:199, function(x){if(length(temp[[x]]) > 0){llvm[[x]][temp[[x]],]}else{rep(0,13)}}))
-test2 <- do.call("rbind",lapply(1:199, function(x){llvm[[x]][sample(1:4, length(temp[[x]])),]}))
-test3 <- colMeans(test1[-which(rowSums(test1) == 0),]) - colMeans(test2[-which(rowSums(test1) == 0),])
-test3 <- colMeans(test1) - colMeans(test2)
-plot(test3)
-
-
-llfn2 <- lapply(fournode.am, function(x){Crmod(Adj = x, t = 1:500, G = G.i, method = conres, FuncRes = Fbd, K = 1, x.i = .5, yij = 6, eij = 1, xpar = 10, B.o =.5)})
-s2 <- sapply(llfn2, function(x){sum(x[500,-1] > 0)})
-
-# create model network
-
-nm1 <- niche.model(S = 500, C = .1)
-vm <- vert.mot(nm1)
-
-dyn2 <- Crmod(Adj = nm1, t = 1:500, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = 10, B.o =.5, plot = TRUE)
-
-nm2 <- nm1[which(tail(dyn2, 1)[-1] > 0),which(tail(dyn2, 1)[-1] > 0)]
-rr1 <- rel.rand(nm1, nrow(nm2), 100)
-
-s <- as.numeric(tail(dyn2, 1)[-1] > 0)
-summary(glm(s ~ vm, family = "binomial"))
-
-(motif_counter(list(graph.adjacency(nm2))) - colMeans(rr1))/apply(rr1, 2, sd)
-
-web_props(nm1)
-web_props(nm1[which(tail(dyn2, 1)[-1] > 0),which(tail(dyn2, 1)[-1] > 0)])
-
-nc <- netcarto(nm1)
-g <- graph.adjacency(nm1)
-V(g)$color[nc[[1]]$name] <- nc[[1]]$module
-
-TrophInd(nm1)
-
-plot(g)
-
-netcarto(nm1[which(tail(dyn2, 1)[-1] > 0),which(tail(dyn2, 1)[-1] > 0)])
-
-
-K = 1
-x.i = .5
-yij = 6
-xpar = 0
-B.o = .5
-A =  matrix(c(0,0,1,0), nrow = 2)
-FR = Fij
-
-prey <- seq(0, 2, .01)
-pred <- .5
-x <- seq(0, 5, .2)
-eaten <- matrix(nrow = length(prey), ncol = length(x))
-for(j in 1:length(x)){
-  for(i in 1:length(prey)){
-    states = c(prey[i], pred)
-    eaten[i,j] <- rowSums((x.i * yij * FR(states, A, B.o, xpar = x[j]) * states))[2]
+niche_model <- function(S,C){
+  cond <- FALSE
+  while(!cond){
+    new.mat<-matrix(0,nrow=S,ncol=S)
+    ci<-vector()
+    niche<-runif(S,0,1)
+    r<-rbeta(S,1,((1/(2*C))-1))*niche
+    
+    for(i in 1:S){
+      ci[i]<-runif(1,r[i]/2,niche[i])
+    }
+    
+    r[which(niche==min(niche))]<-.00000001
+    
+    for(i in 1:S){
+      
+      for(j in 1:S){
+        if(niche[j]>(ci[i]-(.5*r[i])) && niche[j]<(ci[i]+.5*r[i])){
+          new.mat[j,i]<-1
+        }
+      }
+    }
+    cond <- is.connected(graph.adjacency(new.mat))
   }
+  
+  new.mat<-new.mat[order(apply(new.mat,2,sum)),order(apply(new.mat,2,sum))]
+  
+  return(new.mat)
 }
-matplot(prey, eaten, typ = "l")
 
-FR = Fbd
-prey <- seq(0, 2, .01)
-pred <- .5
-x <- seq(0, 5, .2)
-eaten <- matrix(nrow = length(prey), ncol = length(x))
-for(j in 1:length(x)){
-  for(i in 1:length(prey)){
-    states = c(prey[i], pred)
-    eaten[i,j] <- rowSums((x.i * yij * FR(states, A, B.o, xpar = x[j]) * states))[2]
+strt <- Sys.time()
+cl <- makeCluster(detectCores() - 1)
+registerDoSNOW(cl)
+
+RESULTS <- foreach(i = 1:10, .packages = c("rend", "igraph")) %dopar% {
+  nm05 <- niche_model(60, .05)
+  nm15 <- niche_model(60, .15)
+  nm25 <- niche_model(60, .25)
+  
+  sim05 <- CRsimulator(nm.05)
+  sim15 <- CRsimulator(nm.15)
+  sim25 <- CRsimulator(nm.25)
+  
+  wi05 <- WEBind(sim05, nm.05)
+  wi15 <- WEBind(sim15, nm.15)
+  wi25 <- WEBind(sim25, nm.25)
+  
+  tc05 <- trophicChange(sim05, nm.05)
+  tc15 <- trophicChange(sim15, nm.15)
+  tc25 <- trophicChange(sim25, nm.25)
+  
+  mo05 <- motifCounter3(sim05, nm.05)
+  mo15 <- motifCounter3(sim15, nm.15)
+  mo25 <- motifCounter3(sim25, nm.25)
+  
+  return(list(models = list(nm05, nm15, nm25), sims = list(sim05, sim15, sim25), wind = list(wi05, wi15, wi25), 
+              troph = list(tc05, tc15, tc25), motif = list(mo05, mo15, mo25)))
+}
+
+stopCluster(cl)
+end <- Sys.time()
+strt - end
+
+
+rand.niche <- function(n, wi){
+  nlist <- lapply(1:nrow(wi), function(x){nm <- list();for(i in 1:n){nm[[i]] <- niche_model(wi[x,"N"], wi[x,"C"])};return(nm)})
+  return(nlist)
+}
+
+
+mysim <- function(iter, S, C){
+  strt <- Sys.time()
+  cl <- makeCluster(detectCores() - 1)
+  registerDoSNOW(cl)
+  
+  RESULTS <- foreach(i = 1:iter, .packages = c("rend", "igraph")) %dopar% {
+    
+    nm <- niche_model(60, .05)
+    sim <- CRsimulator(nm)
+    wi <- WEBind(sim, nm)
+    tc <- trophicChange(sim, nm)
+    mo <- motifCounter3(sim, nm)
+    
+    rnm <- rand.niche(10, wi)
+
+    return(list(nm, sim, wi, tc, mo))
   }
+  
+  stopCluster(cl)
+  end <- Sys.time()
+  strt - end
+  
+  
+  
 }
-matplot(prey, eaten, typ = "l")
 
-rel.rand.z(mat = nm1, dyn = dyn2, iter = 10)
 
-# general crmod
-results <- list()
-results2 <- list()
-for(i in 1:200){
-  test <- CRmod.gen(100, .2, "erdosrenyi", xpar = 1)
-  test2 <- CRmod.gen(100, .2, "erdosrenyi", xpar = .2)
-  results[[i]] <- data.frame(q = 1, iter = i, test)
-  results2[[i]] <- data.frame(q = .2, iter = i, test2)
-  print(i)
+
+
+
+nm.05 <- lapply(1:10, function(x){niche_model(60, .05)})
+nm.15 <- lapply(1:10, function(x){niche_model(60, .15)})
+nm.25 <- lapply(1:10, function(x){niche_model(60, .25)})
+
+library(parallel)
+library(doSNOW)
+
+strt <- Sys.time()
+cl <- makeCluster(detectCores() - 1)
+registerDoSNOW(cl)
+
+RESULTS <- foreach(i = 1:10, .packages = "rend") %dopar% {
+  sim05 <- CRsimulator(nm.05[[i]])
+  sim15 <- CRsimulator(nm.15[[i]])
+  sim25 <- CRsimulator(nm.25[[i]])
+  
+  return(list(sim05 = sim05, sim15 = sim15, sim25 = sim25))
 }
-z.all <- melt(rbindlist(results), id.vars = c(1,2))
-z.all2 <- melt(rbindlist(results2), id.vars = c(1,2))
+
+stopCluster(cl)
+end <- Sys.time()
+strt - end
 
 
-ggplot(rbind(z.all, z.all2), aes(x = variable, y = value, fill = factor(q))) + geom_boxplot()
+s05 <- lapply(RESULTS, "[[", 1)
+s15 <- lapply(RESULTS, "[[", 2)
+s25 <- lapply(RESULTS, "[[", 3)
 
-# visualize results
+wi05 <- lapply(1:10, function(x){WEBind(s05[[x]], nm.05[[x]])})
 
-vis_dyn(dyn = dyn1, t.start = 100, t.end = 500)
+strt <- Sys.time()
+cl <- makeCluster(detectCores() - 1)
+registerDoSNOW(cl)
 
-plot.igraph(graph.adjacency(nm2), vertex.size = -1/log(dyn1[i, c(which(tail(dyn1, 1) > 0)[-1])])*100, edge.arrow.size = .5, layout = lay)
+RESULTS <- foreach(i = 1:10, .packages = c("rend", "igraph")) %dopar% {
+  wi05 <- WEBind(s05[[i]], nm.05[[i]])
+  wi15 <- WEBind(s15[[i]], nm.15[[i]])
+  wi25 <- WEBind(s25[[i]], nm.25[[i]])
+  
+  return(list(wi05 = wi05, wi15 = wi15, wi25 = wi25))
+}
 
-# analysis
+stopCluster(cl)
+end <- Sys.time()
+strt - end
 
-coef.var <- apply(dyn1[,-1][,which(dyn1[200,-1] > 0)], 2, function(x){sd(x)/mean(x)})
 
-
-
-#############################################################################
-#############################################################################
 #############################################################################
 ## Parallel lists
 n.mod.webs <- web_maker("niche", 100, 60, .1)

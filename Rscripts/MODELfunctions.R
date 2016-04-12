@@ -10,153 +10,31 @@ library(rnetcarto)
 library(parallel)
 library(doSNOW)
 
-# C-R-model Functions
 
-# growth (nonzero for basal spp only)
-G.i <- function(r, B, K){return(r * B * (1 - (B/K)))}
-
-# functional response 
-Fij <- function(B, A, B.0, xpar){
-  sum.bk <- rowSums(sapply(1:nrow(A), function(x){B[x] * A[x,]}))^(1+xpar)
-  denom <- sum.bk + B.0^(1+xpar)
+niche_model <- function(S, C){
+  new.mat<-matrix(0,nrow=S,ncol=S)
+  ci<-vector()
+  niche<-runif(S,0,1)
+  r<-rbeta(S,1,((1/(2*C))-1))*niche
   
-  F1 <- sapply(1:nrow(A), function(x){(B[x] * A[x,])^(1+xpar)})/denom
+  for(i in 1:S){
+    ci[i]<-runif(1,r[i]/2,niche[i])
+  }
   
-  return(F1)
-}
-
-# functional response with interference
-Fbd <- function(B, A, B.0, xpar){
-  sum.bk <- rowSums(sapply(1:nrow(A), function(x){B[x] * A[x,]}))
-  denom <- sum.bk + (1 + (xpar * B)) * B.0
+  r[which(niche==min(niche))]<-.00000001
   
-  F1 <- sapply(1:nrow(A), function(x){(B[x] * A[x,])})/denom
-  
-  return(F1)
-}
-
-# get r.i from adjacency matrix
-get.r <- function(amat){
-  r.i <- c()
-  r.i[colSums(amat) == 0] <- 1
-  r.i[colSums(amat) != 0] <- 0
-  
-  if(sum(r.i) == 0){r.i[sample(1:length(r.i), 1)] <- 1}
-  return(r.i)
-}
-
-# dynamic function for ode solver
-conres <- function(t,states,par){
-  
-  with(as.list(c(states, par)), {
-    dB <- G.i(r = r.i, B = states, K = K) - x.i*states + rowSums((x.i * yij * FR(states, A, B.o, xpar = xpar) * states)) - rowSums((x.i * yij * t(FR(states, A, B.o, xpar = xpar)* states))/eij)
+  for(i in 1:S){
     
-    list(c(dB))
-  })
-  
-}
-
-# wrapper  to input params, run dynamics, and plot
-Crmod <- function(Adj, t = 1:200, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = .2, B.o =.5, plot = FALSE){
-  require(deSolve)
-  
-  grow <- get.r(Adj)
-  
-  par <- list(
-    K = K,
-    x.i = x.i,
-    yij = yij,
-    eij = 1,
-    xpar = xpar,
-    B.o = B.o,
-    r.i = grow,
-    A = Adj,
-    G.i = G,
-    FR = FuncRes
-  )
-  
-  states <- runif(nrow(Adj), .5, 1)
- 
-  out <- ode(y=states, times=t, func=method, parms=par, events = list(func = eventfun, time = t))
-  
-  if(plot) print(matplot(out[,-1], typ = "l", lwd = 2, xlab = "Time", ylab = "Biomass"))
-  
-  return(out)
-}
-
-# event function to make any spp under the threshold equal to 0 (extinction)
-eventfun <- function(times, states, parms){
-  with(as.list(states), {
-    for(i in 1:length(states)){
-      if(states[i] < 10^-10){states[i] <- 0}else{states[i]} 
-    }
-    return(c(states))
-  })
-}
-
-# Niche model functions
-niche.model<-function(S,C){
-  require(igraph)
-  connected = FALSE
-  while(!connected){  
-    new.mat<-matrix(0,nrow=S,ncol=S)
-    ci<-vector()
-    niche<-runif(S,0,1)
-    r<-rbeta(S,1,((1/(2*C))-1))*niche
-    
-    for(i in 1:S){
-      ci[i]<-runif(1,r[i]/2,niche[i])
-    }
-    
-    r[which(niche==min(niche))]<-.00000001
-    
-    for(i in 1:S){
-      
-      for(j in 1:S){
-        if(niche[j]>(ci[i]-(.5*r[i])) && niche[j]<(ci[i]+.5*r[i])){
-          new.mat[j,i]<-1
-        }
+    for(j in 1:S){
+      if(niche[j]>(ci[i]-(.5*r[i])) && niche[j]<(ci[i]+.5*r[i])){
+        new.mat[j,i]<-1
       }
     }
-    
-    new.mat<-new.mat[,order(apply(new.mat,2,sum))]
-    
-    connected <- is.connected(graph.adjacency(new.mat))
   }
+  
+  new.mat<-new.mat[order(apply(new.mat,2,sum)),order(apply(new.mat,2,sum))]
+  
   return(new.mat)
-}
-
-erdos_renyi <- function(S, C){
-  basal = FALSE
-  while(!basal){
-    ag <- erdos.renyi.game(n = S, p.or.m = C, type = "gnp", directed = T)
-    amat <- get.adjacency(ag, sparse = F)
-    
-    basal <- sum(colSums(amat) == 0) > 1
-  }
-  return(amat)
-}
-
-web_maker <- function(typ, n, S, C){
-  if(typ == "niche"){
-    niche.list <- list()
-    for (i in 1:n){
-      n <- niche.model(S, C)
-      while(sum(colSums(n) == 0) != 6){
-        n <- niche.model(S, C)
-      }
-      niche.list[[i]] <- n
-    }
-    return(niche.list)
-  }else if(typ == "erg"){
-    erg.list <- list()
-    for (i in 1:n){
-      erg.list[[i]]<- erdos_renyi(S, C)
-    }
-    return(erg.list)
-  }else{
-    stop("This function only works for niche model ('niche') and erdos-renyi random networks ('erg')")
-  }
 }
 
 
@@ -182,43 +60,6 @@ motif_counter <- function(graph.lists){
   return(motif.data.frame)
 }
 
-vert.mot <- function(mat){
-  diff <- matrix(nrow = nrow(mat), ncol = 13)
-  g1 <- graph.adjacency(mat)
-  for(i in 1:nrow(mat)){
-    diff[i,] <- as.matrix(motif_counter(list(g1)) - motif_counter(list(delete.vertices(g1, i))))
-  }
-  return(diff)
-}
-
-
-
-web_props <- function(mat){
-  require(NetIndices)
-  require(modMax)
-  
-  N <- nrow(mat)
-  C <- sum(mat)/(nrow(mat)*(nrow(mat)-1))
-  
-  genind <- GenInd(mat)
-  Ltot <- genind$Ltot
-  LD <- genind$LD
-  
-  g <- graph.adjacency(mat)
-  
-  clust <- transitivity(g)
-  apl <- average.path.length(g)
-  diam <- diameter(g)
-  
-  bas <- sum(degree(g, mode = "in") == 0)
-  top <- sum(degree(g, mode = "out") == 0)
-  
-  #mot <- motif_counter(list(graph.adjacency(mat)))
-  
-  df <- matrix(c(N, C, Ltot, LD, clust, apl, diam, bas, top), nrow = 1)
-  colnames(df) <- c("N", "C", "Ltot", "LD", "clust", "apl", "diam", "bas", "top")
-  return(df)
-}
 
 # curveball function for null model
 curve_ball<-function(m){
@@ -321,125 +162,3 @@ motif_loss <- function(dmat, init){
   return(rbindlist(mc))
 }
 
-# multiple iterations
-
-CRmod.gen <- function(S, con, network, xpar, ...){
-  # create model network
-  if(network == "niche"){amat <- niche.model(S = S, C = con)}
-  if(network == "erdosrenyi"){
-    ag <- erdos.renyi.game(n = S, p.or.m = con, type = "gnp", directed = T)
-    amat <- get.adjacency(ag, sparse = F)
-  }
-  
-  # dynamic model
-  
-  dyn1 <- Crmod(Adj = amat, t = 1:500, G = G.i, method = conres, FuncRes = Fij, K = 1, x.i = .5, yij = 6, eij = 1, xpar = xpar, B.o =.5, plot = FALSE)
-  
-  # get motif scores
-  
-  amat2 <- amat[which(tail(dyn1[,-1], 1) > 0),which(tail(dyn1[,-1], 1) > 0)]
-  
-  #z1 <- data.frame(time = factor("init"), get.zscore(amat))
-  #z2 <- data.frame(time = factor("final"), get.zscore(amat2))
-  #return(rbind(z1, z2))
-  
-  z <- rel.rand.z(amat, dyn1, iter = 10000)
-  z1 <- z/sqrt(sum(z^2, na.rm = T))
-  t(apply(zscore.t, 1, function(x){x/sqrt(sum(x^2, na.rm = T))}))
-  wp <- cbind(melt(web_props(amat), variable.name = "property", value.name = "initial"), final = melt(web_props(amat2))[,2])
-  
-  return(list(wp = wp, z = z1))
-}
-
-
-
-
-# visualize 
-
-vis_dyn <- function(dyn, t.start = 1, t.end = 200){
-  require(ggplot2)
-  g <- ggplot(melt(dyn[t.start:t.end,-1]), aes(x = Var1, y = value, col = factor(Var2))) + geom_line() + theme(legend.position="none")
-  print(g)
-}
-
-netHTML <- function(mat, dyn, path1 = getwd()){
-  require(animation)
-  
-  lay <- matrix(c(layout.sphere(graph.adjacency(nm1))[,1], TrophInd(nm1)$TL), ncol = 2)
-  s <- matrix(0, nrow = nrow(dyn), ncol = ncol(mat))
-  
-  ani.options(interval = .25)
-  saveHTML(
-    {
-      for(i in 1:50){
-        fr <- Fij(dyn2[i,-1], nm1, .5, .2)
-        strength <- melt(fr)[,3][melt(fr)[,3] > 0]
-        fr[fr > 0 ] <- 1
-        
-        g.new <- graph.adjacency(t(fr))
-        E(g.new)$weight <- strength/max(strength)*10
-        s[i,c(which(dyn2[i,-1] > 0))] <-log(dyn2[i, c(which(dyn2[i,] > 0)[-1])])+abs(min(log(dyn2[i, c(which(dyn2[i,] > 0)[-1])])))
-        
-        plot.igraph(g.new, vertex.size = s[i,], edge.width = E(g.new)$weight, layout = lay)
-      }
-    },
-    htmlfile = "fwdyn.html", interval = .25, nmax =500, ani.width = 500, ani.height = 500,
-    outdir = path1
-  )
-}
-
-
-# QSS functions
-
-## changed conversion to work for netcarto
-conversion <- function(tm){
-  for(i in 1:nrow(tm)){
-    for(j in 1:ncol(tm)){
-      if(tm[i,j] == 1 & tm[j,i] == 0){tm[j,i] <- 1}
-    }
-  }
-  return(tm)
-}
-
-ran.unif <- function(motmat){
-  newmat <- apply(motmat, c(1,2), function(x){
-    if(x==1){runif(1, 0, 10)}else if(x==-1){runif(1, -1, 0)} else{0}
-  })
-  diag(newmat) <- runif(nrow(newmat), -1, 0)
-  return(newmat)
-}
-
-maxRE <- function(rmat){
-  lam.max <- max(Re(eigen(rmat)$values))
-  return(lam.max)
-}
-
-eig.analysis <- function(n, matrices){
-  cols <- length(matrices)
-  rows <- n
-  eigenMATRIX <- matrix(0, nrow = rows, ncol = cols)
-  for(i in 1:n){
-    ranmat <- lapply(matrices, ran.unif)
-    
-    eigs <- sapply(ranmat, maxRE)
-    eigenMATRIX[i,] <- eigs
-  }
-  return(eigenMATRIX)
-}
-
-# For slides
-set.seed(12)
-nm1 <- niche.model(S = 30, C = .1)
-
-## For parallel
-tot = 100
-modTYPE <- c(rep("erdosrenyi", tot/2), rep("niche", tot/2))
-
-results <- lapply(1:tot, function(x) data.frame(rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10)))
-results2 <- lapply(1:tot, function(x) data.frame(rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10), rep(0, 10)))
-z.results <- lapply(1:tot, function(x) data.frame(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
-z.results2 <- lapply(1:tot, function(x) data.frame(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
-
-z.res <- lapply(1:tot, function(x){rbind(data.frame(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0), data.frame(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))})
-
-res <- lapply(1:1, function(x) data.frame(rep(0, 20), rep(0, 20), rep(0, 20), rep(0, 20), rep(0, 20)))
