@@ -78,9 +78,9 @@ spa6 <- lapply(spadd6, function(x) x[x$locweb %in% which(iscon6[in1.eqS > 5]),])
 triplot.del <- function(spd){
   spdP <- spd$persist == 1
   spdNP <- spd$persist != 1
-  wp.spd1 <- select(spd, L:D, -C)
-  mo.spd1 <- select(spd, s1:d8)
-  dp.spd1 <- select(spd, delGen:delOI)
+  wp.spd1 <- dplyr::select(spd, L:D, -C)
+  mo.spd1 <- dplyr::select(spd, s1:d8)
+  dp.spd1 <- dplyr::select(spd, delGen:delOI)
   
   print(barplot(colMeans(wp.spd1[spdNP,], na.rm = T) - colMeans(wp.spd1[spdP,], na.rm = T), las = 2))
   print(barplot(colMeans(mo.spd1[spdNP,], na.rm = T) - colMeans(mo.spd1[spdP,], na.rm = T)))
@@ -96,8 +96,64 @@ triplot.del(spd4)
 triplot.del(spd5)
 triplot.del(spd6)
 
+wplot.del <- function(spdlist){
+  dyn <- expand.grid(c("Fij", "Fbd"), c("0", "0.2", "1"))
+  df <- list()
+  for(i in 1:length(spdlist)){
+    spd <- spdlist[[i]]
+    spdP <- spd$persist == 1
+    spdNP <- spd$persist != 1
+    wp.spd1 <- dplyr::select(spd, L:D, -C)
+    t1 <- colMeans(wp.spd1[spdNP,], na.rm = T) - colMeans(wp.spd1[spdP,], na.rm = T)
+    df[[i]] <- data.frame(values = melt(t1)$value, metric = factor(names(t1), levels = names(t1)),
+                          L1 = i, FR = dyn[i,1], par = dyn[i,2])
+  }
+ 
+  return(rbindlist(df))
+}
+
+mplot.del <- function(spdlist){
+  dyn <- expand.grid(c("Fij", "Fbd"), c("0", "0.2", "1"))
+  df <- list()
+  for(i in 1:length(spdlist)){
+    spd <- spdlist[[i]]
+    spdP <- spd$persist == 1
+    spdNP <- spd$persist != 1
+    mo.spd1 <- dplyr::select(spd, s1:d8)
+    t1 <- colMeans(mo.spd1[spdNP,], na.rm = T) - colMeans(mo.spd1[spdP,], na.rm = T)
+    df[[i]] <- data.frame(values = melt(t1)$value, metric = factor(names(t1), levels = names(t1)),
+                          L1 = i, FR = dyn[i,1], par = dyn[i,2])
+  }
+  
+  return(rbindlist(df))
+}
+
+dplot.del <- function(spdlist){
+  dyn <- expand.grid(c("Fij", "Fbd"), c("0", "0.2", "1"))
+  df <- list()
+  for(i in 1:length(spdlist)){
+    spd <- spdlist[[i]]
+    spdP <- spd$persist == 1
+    spdNP <- spd$persist != 1
+    dp.spd1 <- dplyr::select(spd, delGen:delOI)
+    t1 <- colMeans(dp.spd1[spdNP,], na.rm = T) - colMeans(dp.spd1[spdP,], na.rm = T)
+    df[[i]] <- data.frame(values = melt(t1)$value, metric = factor(names(t1), levels = names(t1)),
+                          L1 = i, FR = dyn[i,1], par = dyn[i,2])
+  }
+  
+  return(rbindlist(df))
+}
 
 
+spdl <- list(spd1, spd2, spd3, spd4, spd5, spd6)
+
+ggplot(wplot.del(spdl), aes(x = metric, y = values)) + geom_bar(stat = "identity") + facet_grid(par~FR) +
+  theme_bw() + theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0)) +
+  xlab("Food Web Property") + ylab("Difference in the Change in Value for Non Persistent and Persistent Webs")
+ggplot(mplot.del(spdl), aes(x = metric, y = values)) + geom_bar(stat = "identity") + facet_grid(par~FR) + theme_bw() +
+  xlab("Three-Species Configurations") + ylab("Difference in the Change in Value for Non Persistent and Persistent Webs")
+ggplot(dplot.del(spdl), aes(x = metric, y = values)) + geom_bar(stat = "identity") + facet_grid(par~FR) + theme_bw() +
+  xlab("Deleted Species Property") + ylab("Difference in the Change in Value for Non Persistent and Persistent Webs")
 
 ### Species deletion
 ## linear mixed effects models with principal components of (1) subgraph composition and (2) web properties
