@@ -104,9 +104,13 @@ wplot.del <- function(spdlist){
     spdP <- spd$persist == 1
     spdNP <- spd$persist != 1
     wp.spd1 <- dplyr::select(spd, L:D, -C)
-    t1 <- colMeans(wp.spd1[spdNP,], na.rm = T) - colMeans(wp.spd1[spdP,], na.rm = T)
-    df[[i]] <- data.frame(values = melt(t1)$value, metric = factor(names(t1), levels = names(t1)),
-                          L1 = i, FR = dyn[i,1], par = dyn[i,2])
+    t1 <- melt(wp.spd1[spdNP,], measure.vars = names(wp.spd1[spdNP,])) 
+    df1 <- data.frame(values = t1$value, metric = factor(t1$variable, levels = names(wp.spd1)),
+                          L1 = i, FR = dyn[i,1], par = dyn[i,2], stability = "not persistent")
+    t2 <- melt(wp.spd1[spdP,], measure.vars = names(wp.spd1[spdP,]))
+    df2 <- data.frame(values = t2$value, metric = factor(t2$variable, levels = names(wp.spd1)),
+                      L1 = i, FR = dyn[i,1], par = dyn[i,2], stability = "persistent")
+    df[[i]] <- rbind(df1, df2)
   }
  
   return(rbindlist(df))
@@ -120,9 +124,13 @@ mplot.del <- function(spdlist){
     spdP <- spd$persist == 1
     spdNP <- spd$persist != 1
     mo.spd1 <- dplyr::select(spd, s1:d8)
-    t1 <- colMeans(mo.spd1[spdNP,], na.rm = T) - colMeans(mo.spd1[spdP,], na.rm = T)
-    df[[i]] <- data.frame(values = melt(t1)$value, metric = factor(names(t1), levels = names(t1)),
-                          L1 = i, FR = dyn[i,1], par = dyn[i,2])
+    t1 <- melt(mo.spd1[spdNP,], measure.vars = names(mo.spd1[spdNP,])) 
+    df1 <- data.frame(values = t1$value, metric = factor(t1$variable, levels = names(mo.spd1)),
+                      L1 = i, FR = dyn[i,1], par = dyn[i,2], stability = "not persistent")
+    t2 <- melt(mo.spd1[spdP,], measure.vars = names(mo.spd1[spdP,]))
+    df2 <- data.frame(values = t2$value, metric = factor(t2$variable, levels = names(mo.spd1)),
+                      L1 = i, FR = dyn[i,1], par = dyn[i,2], stability = "persistent")
+    df[[i]] <- rbind(df1, df2)
   }
   
   return(rbindlist(df))
@@ -136,24 +144,83 @@ dplot.del <- function(spdlist){
     spdP <- spd$persist == 1
     spdNP <- spd$persist != 1
     dp.spd1 <- dplyr::select(spd, delGen:delOI)
-    t1 <- colMeans(dp.spd1[spdNP,], na.rm = T) - colMeans(dp.spd1[spdP,], na.rm = T)
-    df[[i]] <- data.frame(values = melt(t1)$value, metric = factor(names(t1), levels = names(t1)),
-                          L1 = i, FR = dyn[i,1], par = dyn[i,2])
+    t1 <- melt(dp.spd1[spdNP,], measure.vars = names(dp.spd1[spdNP,])) 
+    df1 <- data.frame(values = t1$value, metric = factor(t1$variable, levels = names(dp.spd1)),
+                      L1 = i, FR = dyn[i,1], par = dyn[i,2], stability = "not persistent")
+    t2 <- melt(dp.spd1[spdP,], measure.vars = names(dp.spd1[spdP,]))
+    df2 <- data.frame(values = t2$value, metric = factor(t2$variable, levels = names(dp.spd1)),
+                      L1 = i, FR = dyn[i,1], par = dyn[i,2], stability = "persistent")
+    df[[i]] <- rbind(df1, df2)
+  }
+  
+  return(rbindlist(df))
+}
+
+lplot.del <- function(spalist){
+  dyn <- expand.grid(c("Fij", "Fbd"), c("0", "0.2", "1"))
+  df <- list()
+  for(i in 1:length(spalist)){
+    spd <- spalist[[i]]
+    spdP <- spd$persist == 1
+    spdNP <- spd$persist != 1
+    wp.spd1 <- dplyr::select(spd, L)
+    t1 <- melt(wp.spd1[spdNP,], measure.vars = names(wp.spd1[spdNP,])) 
+    df1 <- data.frame(values = t1$value, metric = "Not Persistent",
+                      L1 = i, FR = dyn[i,1], par = dyn[i,2], stability = "not invaded")
+    t2 <- melt(wp.spd1[spdP,], measure.vars = names(wp.spd1[spdP,]))
+    df2 <- data.frame(values = t2$value, metric = "Persistent",
+                      L1 = i, FR = dyn[i,1], par = dyn[i,2], stability = "invaded")
+    df[[i]] <- rbind(df1, df2)
   }
   
   return(rbindlist(df))
 }
 
 
+max.se <- function(x){mean(x) + 1.96*(sd(x)/sqrt(length(x)))}
+min.se <- function(x){mean(x) - 1.96*(sd(x)/sqrt(length(x)))}
+
 spdl <- list(spd1, spd2, spd3, spd4, spd5, spd6)
 
-ggplot(wplot.del(spdl), aes(x = metric, y = values)) + geom_bar(stat = "identity") + facet_grid(par~FR) +
+ggplot(lplot.del(spdl), aes(x = metric, y = values, fill = stability)) + 
+  geom_bar(stat = "summary", position = "dodge") + 
+  stat_summary(fun.y = "mean", fun.ymin = min.se, fun.ymax = max.se, geom = "errorbar", position = "dodge") + 
+  facet_grid(par~FR, scales = "free_y") +
+  theme_bw() + scale_fill_discrete(guide = FALSE) +
+  xlab(NULL) + ylab("Change in Links Following Species Introduction")
+#ggsave("./Figs/lplotDEL.png")
+
+wp1 <- wplot.del(spdl)
+wp2 <- wp1[wp1$metric == "meanTP" & FR == "Fij" & par == 0.2 | wp1$metric == "D" & FR == "Fij" & par == 0.2 | wp1$metric == "APL" & FR == "Fij" & par == 0.2,]
+wp3 <- wp1[wp1$metric == "meanGen" | wp1$metric == "meanVul" | wp1$metric == "meanTP"| wp1$metric == "D" | wp1$metric == "meanOI",]
+ggplot(wp2, aes(x = par, y = values, fill = stability)) + 
+  geom_bar(stat = "summary", position = "dodge") + 
+  stat_summary(fun.y = "mean", fun.ymin = min.se, fun.ymax = max.se, geom = "errorbar", position = "dodge") + 
+  facet_grid(metric~FR, scales = "free_y") +
+  theme_bw() + #theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0)) +
+  xlab("Model Parameter") + ylab("Change in Value Following Species Removal")
+#ggsave("./Figs/wplotDEL.png")
+
+mp1 <- mplot.del(spdl)
+mp2 <- mp1[mp1$metric == "s1" & FR == "Fij" & par == 0.2 | mp1$metric == "s2" & FR == "Fij" & par == 0.2 | mp1$metric == "s4" & FR == "Fij" & par == 0.2 | mp1$metric == "s5" & FR == "Fij" & par == 0.2,]
+mp3 <- mp1[mp1$metric == "d1" & FR == "Fij" & par == 0.2 | mp1$metric == "d2" & FR == "Fij" & par == 0.2 | mp1$metric == "d3" & FR == "Fij" & par == 0.2 | mp1$metric == "d4" & FR == "Fij" & par == 0.2 | mp1$metric == "d5" & FR == "Fij" & par == 0.2 | mp1$metric == "d6" & FR == "Fij" & par == 0.2 |  mp1$metric == "d7" & FR == "Fij" & par == 0.2 |  mp1$metric == "d8" & FR == "Fij" & par == 0.2 ,]
+ggplot(mp3, aes(x = stability, y = values, fill = stability))  + 
+  geom_bar(stat = "summary", position = "dodge") + 
+  stat_summary(fun.y = "mean", fun.ymin = min.se, fun.ymax = max.se, geom = "errorbar", position = "dodge") + 
+  facet_grid(~metric, scales = "free_y") +
   theme_bw() + theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0)) +
-  xlab("Food Web Property") + ylab("Difference in the Change in Value for Non Persistent and Persistent Webs")
-ggplot(mplot.del(spdl), aes(x = metric, y = values)) + geom_bar(stat = "identity") + facet_grid(par~FR) + theme_bw() +
-  xlab("Three-Species Configurations") + ylab("Difference in the Change in Value for Non Persistent and Persistent Webs")
-ggplot(dplot.del(spdl), aes(x = metric, y = values)) + geom_bar(stat = "identity") + facet_grid(par~FR) + theme_bw() +
-  xlab("Deleted Species Property") + ylab("Difference in the Change in Value for Non Persistent and Persistent Webs")
+  xlab("Model Parameter") + ylab("Change in Frequency Following Species Removal")
+#ggsave("./Figs/mplotDEL.png")
+
+dpd <- dplot.del(spdl)
+dpd[dpd$FR == "Fij" & dpd$par == .2]
+ggplot(dpd[dpd$FR == "Fij" & dpd$par == .2], aes(x = par, y = values, fill = stability))  + 
+  geom_bar(stat = "summary", position = "dodge") + 
+  stat_summary(fun.y = "mean", fun.ymin = min.se, fun.ymax = max.se, geom = "errorbar", position = "dodge") + 
+  facet_grid(metric~FR, scales = "free_y") +
+  theme_bw() +
+  xlab("Model Parameter") + ylab("Value For Removed Species")
+#ggsave("./Figs/dplotDEL.png")
 
 ### Species deletion
 ## linear mixed effects models with principal components of (1) subgraph composition and (2) web properties
@@ -274,6 +341,134 @@ barplot(colMeans(spa4[[1]][spa4[[2]]$I == TRUE])[2:26] - colMeans(spa4[[1]][spa4
 barplot(colMeans(spa5[[1]][spa5[[2]]$I == TRUE])[2:26] - colMeans(spa5[[1]][spa5[[2]]$I == FALSE])[2:26])
 barplot(colMeans(spa6[[1]][spa6[[2]]$I == TRUE])[2:26] - colMeans(spa6[[1]][spa6[[2]]$I == FALSE])[2:26])
 
+wplot.inv <- function(spalist){
+  dyn <- expand.grid(c("Fij", "Fbd"), c("0", "0.2", "1"))
+  df <- list()
+  for(i in 1:length(spalist)){
+    spd <- spalist[[i]]
+    spdP <- spd[[2]]$I == TRUE
+    spdNP <- spd[[2]]$I == FALSE
+    wp.spd1 <- dplyr::select(spd[[1]], L:D, -C)
+    t1 <- melt(wp.spd1[spdNP,], measure.vars = names(wp.spd1[spdNP,])) 
+    df1 <- data.frame(values = t1$value, metric = factor(t1$variable, levels = names(wp.spd1)),
+                      L1 = i, FR = dyn[i,1], par = dyn[i,2], stability = "not invaded")
+    t2 <- melt(wp.spd1[spdP,], measure.vars = names(wp.spd1[spdP,]))
+    df2 <- data.frame(values = t2$value, metric = factor(t2$variable, levels = names(wp.spd1)),
+                      L1 = i, FR = dyn[i,1], par = dyn[i,2], stability = "invaded")
+    df[[i]] <- rbind(df1, df2)
+  }
+  
+  return(rbindlist(df))
+}
+
+mplot.inv <- function(spalist){
+  dyn <- expand.grid(c("Fij", "Fbd"), c("0", "0.2", "1"))
+  df <- list()
+  for(i in 1:length(spalist)){
+    spd <- spalist[[i]]
+    spdP <- spd[[2]]$I == TRUE
+    spdNP <- spd[[2]]$I == FALSE
+    mo.spd1 <- dplyr::select(spd[[1]], s1:d8)
+    t1 <- melt(mo.spd1[spdNP,], measure.vars = names(mo.spd1[spdNP,])) 
+    df1 <- data.frame(values = t1$value, metric = factor(t1$variable, levels = names(mo.spd1)),
+                      L1 = i, FR = dyn[i,1], par = dyn[i,2], stability = "not invaded")
+    t2 <- melt(mo.spd1[spdP,], measure.vars = names(mo.spd1[spdP,]))
+    df2 <- data.frame(values = t2$value, metric = factor(t2$variable, levels = names(mo.spd1)),
+                      L1 = i, FR = dyn[i,1], par = dyn[i,2], stability = "invaded")
+    df[[i]] <- rbind(df1, df2)
+  }
+  
+  return(rbindlist(df))
+}
+
+dplot.inv <- function(spdlist){
+  dyn <- expand.grid(c("Fij", "Fbd"), c("0", "0.2", "1"))
+  df <- list()
+  for(i in 1:length(spdlist)){
+    spd <- spdlist[[i]]
+    spdP <- spd[[2]]$I == TRUE
+    spdNP <- spd[[2]]$I == FALSE
+    dp.spd1 <- dplyr::select(spd[[2]], invGen:dN)
+    dp.spd1$dN <- dp.spd1$dN * -1
+    t1 <- melt(dp.spd1[spdNP,], measure.vars = names(dp.spd1[spdNP,])) 
+    df1 <- data.frame(values = t1$value, metric = factor(t1$variable, levels = names(dp.spd1)),
+                      L1 = i, FR = dyn[i,1], par = dyn[i,2], stability = "not invaded")
+    t2 <- melt(dp.spd1[spdP,], measure.vars = names(dp.spd1[spdP,]))
+    df2 <- data.frame(values = t2$value, metric = factor(t2$variable, levels = names(dp.spd1)),
+                      L1 = i, FR = dyn[i,1], par = dyn[i,2], stability = "invaded")
+    df[[i]] <- rbind(df1, df2)
+  }
+  
+  return(rbindlist(df))
+}
+
+lplot.inv <- function(spalist){
+  dyn <- expand.grid(c("Fij", "Fbd"), c("0", "0.2", "1"))
+  df <- list()
+  for(i in 1:length(spalist)){
+    spd <- spalist[[i]]
+    spdP <- spd[[2]]$I == TRUE
+    spdNP <- spd[[2]]$I == FALSE
+    wp.spd1 <- dplyr::select(spd[[1]], L)
+    t1 <- melt(wp.spd1[spdNP,], measure.vars = names(wp.spd1[spdNP,])) 
+    df1 <- data.frame(values = t1$value, metric = "Not Invaded",
+                      L1 = i, FR = dyn[i,1], par = dyn[i,2], stability = "not invaded")
+    t2 <- melt(wp.spd1[spdP,], measure.vars = names(wp.spd1[spdP,]))
+    df2 <- data.frame(values = t2$value, metric = "Invaded",
+                      L1 = i, FR = dyn[i,1], par = dyn[i,2], stability = "invaded")
+    df[[i]] <- rbind(df1, df2)
+  }
+  
+  return(rbindlist(df))
+}
+
+spal <- list(spa1, spa2, spa3, spa4, spa5, spa6)
+
+ggplot(lplot.inv(spal), aes(x = metric, y = values, fill = stability)) + 
+  geom_bar(stat = "summary", position = "dodge") + 
+  stat_summary(fun.y = "mean", fun.ymin = min.se, fun.ymax = max.se, geom = "errorbar", position = "dodge") + 
+  facet_grid(par~FR) +
+  theme_bw() + scale_fill_discrete(guide = FALSE) +
+  xlab(NULL) + ylab("Change in Links Following Species Introduction")
+
+wp1 <- wplot.inv(spal)
+wp2 <- wp1[wp1$metric == "meanTP" & wp1$FR == "Fij" & wp1$par == 0.2 | wp1$metric == "D" & wp1$FR == "Fij" & wp1$par == 0.2,]
+ggplot(wp2, aes(x = stability, y = values, fill = stability)) + 
+  geom_bar(stat = "summary", position = "dodge") + 
+  stat_summary(fun.y = "mean", fun.ymin = min.se, fun.ymax = max.se, geom = "errorbar", position = "dodge") + 
+  facet_grid(~metric, scales = "free_y") +
+  theme_bw() + #theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0)) +
+  xlab("Model Parameter") + ylab("Change in Value Following Species Introduction")
+#ggsave("./Figs/wplotINV.png")
+
+mp1 <- mplot.inv(spal)
+mp2 <- mp1[mp1$metric == "s1" & mp1$FR == "Fij" & mp1$par == 0.2 | mp1$metric == "s2" & mp1$FR == "Fij" & mp1$par == 0.2 | mp1$metric == "s4" & mp1$FR == "Fij" & mp1$par == 0.2 | mp1$metric == "s5"& mp1$FR == "Fij" & mp1$par == 0.2,]
+mp3 <- mp1[mp1$metric == "d1" | mp1$metric == "d2" | mp1$metric == "d3"  | mp1$metric == "d4" | mp1$metric == "d5" | mp1$metric == "d6" |  mp1$metric == "d7" |  mp1$metric == "d8",]
+ggplot(mp3, aes(x = par, y = values, fill = stability)) + 
+  geom_bar(stat = "summary", position = "dodge") + 
+  stat_summary(fun.y = "mean", fun.ymin = min.se, fun.ymax = max.se, geom = "errorbar", position = "dodge") + 
+  facet_grid(metric~FR, scales = "free_y") +
+  theme_bw() + #theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0)) +
+  xlab("Model Parameter") + ylab("Change in Frequency Following Species Introduction")
+#ggsave("./Figs/mplotINV.png")
+
+dp1 <- dplot.inv(spal)
+ggplot(dp1[dp1$FR == "Fij" & dp1$par == 0.2,], aes(x = par, y = values, fill = stability)) + 
+  geom_bar(stat = "summary", position = "dodge") + 
+  stat_summary(fun.y = "mean", fun.ymin = min.se, fun.ymax = max.se, geom = "errorbar", position = "dodge") + 
+  facet_grid(metric~FR, scales = "free_y") +
+  theme_bw() +
+  xlab("Model Parameter") + ylab("Value for Introduced Species")
+#ggsave("./Figs/dplotINV.png")
+
+
+
+
+
+##################################################################################
+##################################################################################
+##################################################################################
+
 
 get_pc_inv <- function(spinvdata){
   subg1 <- select(spinvdata[[1]], s1:d8)
@@ -380,20 +575,23 @@ range(unlist(lapply(lb, "[[", 2)))
 range(unlist(lapply(lb, "[[", 3)))
 #####################################################################
 #####################################################################
-##### MOTIFS
+##### Time to First Extinction
+library(rend)
+library(NetIndices)
 
-t1 <- dplyr::select(spa1[[1]], s1:d8, -s3, -d8, -d5)
-t2 <- dplyr::select(spa1[[2]], tte, I, dN)
-
-t4 <- matrix(c(t1$s1, t1$s2, t1$s4, t1$s5, rowSums(select(t1, d1:d8))), ncol = 5)
-
-t3 <- glm(t2$tte ~ t4, family = "gaussian")
-summary(t3)
-
-t2 <- select(spa4[[2]], tte, I, dN)
-t3 <- glmer(t2$tte ~ spa4pc[[1]]$scores[,c(1)] + (1|spa4[[1]]$locweb), family = "poisson")
-ss <- getME(t3,c("theta","fixef"))
-t3 <- update(t3,start=ss,control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
-summary(t3)
-
-loadings(spa2pc[[1]])
+firstEXT <- c()
+propDIFF <- matrix(ncol = 26, nrow = 100)
+for(i in 1:100){
+  cond <- FALSE
+  while(!cond){
+    nm <- niche.model(50, .15)
+    cond <- sum(colSums(nm) == 0) == 5 & is.connected(graph.adjacency(nm))
+  }
+  
+  dyn <- CRsimulator(nm, t = 1:100)
+  firstEXT[i] <- min(which(apply(dyn[,-1], 1, function(x) sum(x == 0)) > 1))
+  extinctSPP <- which(dyn[firstEXT[i],-1] == 0)
+  if(length(extinctSPP) > 1){extinctSPP <- sample(extinctSPP, 1)}
+  propDIFF[i,] <- unlist(wprop(nm) - wprop(nm[-extinctSPP, -extinctSPP]))
+  print(i)
+}
